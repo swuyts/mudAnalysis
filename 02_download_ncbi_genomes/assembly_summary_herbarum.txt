@@ -1,0 +1,1 @@
+GCA_001039045.1	PRJNA286806	SAMN03770836	LFEE00000000.1	representative genome	1670446	1670446	Lactobacillus herbarum	strain=TCF032-E4		latest	Scaffold	Major	Full	2015/06/24	ASM103904v1	DuPont	GCF_001039045.1	identical	ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/001/039/045/GCA_001039045.1_ASM103904v1		assembly from type material

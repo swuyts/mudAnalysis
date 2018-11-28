@@ -1,0 +1,87 @@
+---
+title: "Gene content analysis L. mudan plasmids"
+author: "Sander Wuyts"
+date: "07 September 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(stringr)
+```
+
+# Initial processing
+
+## Read in all data
+
+```{r}
+# Eggnog results
+eggnog <- read_tsv("out_eggnogmapping/AMB-F209_plasmid.emapper.annotations", skip = 3) %>%
+  rename(gene = `#query_name`,
+         functCat = `COG cat`) %>%
+  mutate(genome = "AMB-F209") %>%
+  head(-3)
+
+eggnog <- read_tsv("out_eggnogmapping/AMB-F249_plasmid.emapper.annotations", skip = 3) %>%
+  rename(gene = `#query_name`,
+         functCat = `COG cat`) %>%
+  mutate(genome = "AMB-F249") %>%
+  head(-3) %>%
+  bind_rows(eggnog)
+
+# functional categories of eggnog
+eggnogFunctCat <- read_tsv("../09_gene_content_analysis/in/functCat_descriptions.tsv")
+
+# Fill in unknown functional categories
+eggnog <- eggnog %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat) %>%
+  left_join(eggnogFunctCat)
+
+```
+
+```{r}
+eggnog %>%
+  select(gene, functCat, genome) %>%
+  distinct() %>%
+  group_by(genome, functCat) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, ": ", description)) %>%
+  ggplot(aes(x = reorder(functCatDescription, -n), y = n, fill = genome)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  ylab("Gene count") +
+  xlab("") +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+```{r fig.width=8}
+eggnog %>%
+  select(gene, functCat, genome) %>%
+  distinct() %>%
+  group_by(genome, functCat) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, ": ", description)) %>%
+  group_by(genome) %>%
+  mutate(total = sum(n)) %>%
+  mutate(relabun = n/total) %>%
+  ggplot(aes(x = genome, y = relabun, fill = functCatDescription)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        legend.title = element_blank(),
+        legend.position = "right") +
+  ylab("Proportion of genes assigned to a COG") +
+  xlab("") +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+

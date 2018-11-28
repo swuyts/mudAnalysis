@@ -1,0 +1,1 @@
+GCA_001438845.1	PRJNA222257	SAMN02797795	JQCL00000000.1	representative genome	942150	942150	Lactobacillus xiangfangensis	strain=LMG 26013		latest	Scaffold	Major	Full	2015/11/06	ASM143884v1	Shanghai Majorbio	GCF_001438845.1	identical	ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/001/438/845/GCA_001438845.1_ASM143884v1		assembly from type material

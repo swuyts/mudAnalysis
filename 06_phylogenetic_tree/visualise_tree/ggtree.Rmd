@@ -1,0 +1,137 @@
+---
+title: "ggtree"
+author: "Sander Wuyts"
+date: "28 September, 2018"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+packageVersion("tidyverse")
+library(ggtree)
+packageVersion("ggtree")
+library(stringr)
+packageVersion("stringr")
+```
+
+```{r}
+tree <- read.tree('~/serverUA/sander/mudan/06_phylogenetic_tree/raxml_out/RAxML_bipartitionsBranchLabels_shortenedoutgroup.mudan')
+
+# Root tree
+tree_r <- ape::root(tree, "outgroup")
+
+# Test ggtree
+p <- ggtree(tree_r) +  geom_tree()
+p
+```
+
+
+```{r}
+typestrains <- tibble(Assembly = c("GCA-000498955", "GCA-000143745", "GCA-001435655", "GCA-001433755", "GCA-001438845",
+                                 "GCA-001039045", "L-Mudanjiangensis-DSM-28402"), 
+                      typestrain = c(rep("NCBI", 6), "inhouse"))
+
+annotation <- read_tsv("~/serverUA/sander/mudan/07_ANI/genomeTableWithClades.tsv") %>%
+  select(Assembly, cladeNumber, species, strain) %>%
+  mutate(Assembly = str_replace(Assembly, "GCA_", "GCA-")) %>%
+  mutate(genus = "L.") %>%
+  mutate(strain = if_else(species == "isolate", str_replace(Assembly, "-", ""), strain),
+         species = if_else(species == "isolate", "isolate", species)) %>%
+  mutate(strain = if_else(Assembly == "L-Mudanjiangensis-DSM-28402", "DSM 28402", strain)) %>%
+  replace_na(list(strain = "")) %>%
+  mutate(strain = str_replace_all(strain, " ", "~")) %>%
+    mutate(strain = str_replace_all(strain, "-", "~")) %>%
+  bind_rows(tibble(Assembly = "outgroup", species = "outgroup", genus = "", strain = "outgroup")) %>%
+  left_join(typestrains) %>%
+  mutate(strain = if_else(strain == "299v", "`299v`", strain)) %>%
+  mutate(strain = if_else(strain == "90sk", "`90sk`", strain)) %>%
+  mutate(strain = if_else(strain == "19L3", "`19L3`", strain)) %>%
+  mutate(strain = if_else(strain == "10CH", "`10CH`", strain)) %>%
+  mutate(strain = if_else(strain == "4_3", "`4_3`", strain)) %>%
+  mutate(treelabel = if_else(species %in% c("outgroup", "isolate"), strain, paste0('italic(', genus ,')~italic(', species, ')~', strain))) %>%
+  mutate(treelabel = if_else(str_sub(treelabel, -1, -1) == "~", str_sub(treelabel, 1, -2), treelabel))
+```
+
+
+Define colours
+
+```{r}
+colourSpecies <- c(plantarum = '#5d7582',
+                   pentosus = '#1f78b4',
+                   fabifermentans = '#89aa6b',
+                   paraplantarum = '#33a02c',
+                   herbarum = '#fb9a99',
+                   isolate = '#e31a1c',
+                   xiangfangensis = '#fdbf6f',
+                   mudanjiangensis = '#c96400',
+                   outgroup = "#000000")
+
+cladeColours <- c(clade1 = '#e41a1c',
+                  clade2 = '#377eb8',
+                  clade3 = '#4daf4a',
+                  clade4 = '#984ea3',
+                  clade5 = '#ff7f00',
+                  clade6 = '#ffff33',
+                  clade7 = '#a65628')
+```
+
+
+```{r, fig.height=10, fig.width= 10}
+ggtree(tree_r, layout= "circular", size = 0.2) %<+% annotation +
+    geom_tiplab2(aes(col = species, label =  treelabel), align = T,  size = 1.5, linesize = 0.08, offset = 0.02, parse =T) +
+  #geom_cladelabel(node = 325, color = "darkgrey", label = " clade 5a", offset = 0.035, barsize = 1, align = T) +
+  #geom_cladelabel(node = 314, color = "darkgrey", label = " L. pentosus", offset = 0.035, barsize = 1, align = T) +
+  geom_tippoint(aes(shape = typestrain), size = 2, colour = "#FDAC4F", alpha = 0.6) +
+  scale_shape_manual(values = c(15, 17)) +
+  scale_color_manual(values = colourSpecies) +
+  theme(plot.background = element_blank()) +
+  xlim(0,0.2)
+  #geom_text2(aes(subset=!isTip, label=node), size = 0.8) # get nodenumbers
+
+ggsave("tree.svg", unit = "cm", width = 21, height = 29.7)
+#ggsave("results/tree.emf", width = 20, height = 20, units = "cm")
+#ggsave("results/tree.png", bg = "transparent")
+
+```
+
+```{r}
+# plot and save legend for species
+ggplot(data = annotation, aes(col = species)) +
+  geom_point(x = 1, y = 1, size = 3) +
+  scale_color_manual(values = colourSpecies)
+ggsave("legendSpecies.svg")
+ggsave("legendSpecies.png", bg = "transparent")
+
+# plot and save legend for clades
+# ggplot(data = annotation, aes(col = cladeNumber)) +
+#   geom_point(x = 1, y = 1, size = 3) +
+#   scale_color_manual(values = cladeColours)
+# ggsave("legendClades.svg")
+# ggsave("legendClades.png")
+
+```
+
+# Non circular
+
+```{r}
+randomsubset <- annotation %>% filter(species == "plantarum") %>% pull(Assembly) %>% .[50:256]
+randomsubset <- c(randomsubset, annotation %>% filter(strain == "") %>% pull(Assembly))
+annotation_subset <- annotation %>% filter(!Assembly %in% randomsubset) 
+
+tree_r_drop <- drop.tip(tree_r, randomsubset)
+
+ggtree(tree_r_drop, size = 0.2) %<+% annotation_subset +
+    geom_tiplab(aes(col = species, label = treelabel), size = 3, align = T, linesize = 0.08, parse = T) +
+  #geom_cladelabel(node = 325, color = "darkgrey", label = " clade 5a", offset = 0.005, barsize = 1, align = T) +
+  #geom_cladelabel(node = 314, color = "darkgrey", label = " L. pentosus", offset = 0.005, barsize = 1, align = T) +
+  geom_tippoint(aes(shape = typestrain), size = 4, colour = "#FDAC4F", alpha = 0.6) +
+  scale_shape_manual(values = c(15, 17)) +
+  scale_color_manual(values = colourSpecies) +
+  theme(plot.background = element_blank()) +
+  xlim(0,0.18)
+
+ggsave("tree_noncircular.svg", width = 21, height = 29.7, units = 'cm')
+
+```
+
+

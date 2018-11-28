@@ -1,0 +1,961 @@
+---
+title: "CONJScan"
+author: "Sander Wuyts"
+date: "30 May 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(gggenes)
+library(RColorBrewer)
+
+# By S. Wittouck
+tidy_orthofinder <- function(orthofinder_dir) {
+  
+  genes_assigned <- orthofinder_dir %>%
+    paste0("/Orthogroups.csv") %>%
+    readr::read_tsv(col_names = T) %>%
+    rename(orthogroup = X1) %>%
+    gather(key = "genome", value = "gene", na.rm = T, - orthogroup) %>%
+    separate_rows(gene, sep = ", ")
+  
+}
+
+
+# Load the report files
+dirs <- list.dirs("out/CONJScan", recursive = F)
+files <- list.files(dirs, pattern = "macsyfinder.report", full.names = T)
+names(files) <- files
+
+CONJScan_genes <- map_df(files, read_tsv,
+                .id = "filename") %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme3"), fill = "right") %>%
+  mutate(genome = str_replace(genome, "_typeFATA", "")) %>%
+  select(-starts_with("deleteme"))
+
+# Read in clade info
+clades <- read_tsv("~/serverUA/sander/mudan/07_ANI/genomeTableWithClades.tsv") %>%
+  select(Assembly, species, cladeNumber_split, cladeName) %>%
+  rename(genome = Assembly)
+
+# Read in gene info
+files <- str_c("../11_gene_info/out/", list.files("../11_gene_info/out/",  pattern = "infoseq")) 
+names(files) <- files
+
+genes <- map_df(files, read_tsv, skip = 1, col_names = c("gene", "Length", "%GC", "Description"), .id = "filename")  %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "deleteme3","file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme4"), fill = "right") %>%
+  select(-(starts_with("deleteme")))
+
+# Read in orthogroup info
+orthogroups <- tidy_orthofinder("~/serverUA/sander/mudan/05_pangenome/Results_Sep03/")
+
+# Read in eggnog
+eggnog <- read_tsv("../08_map_to_eggnog/out/mudan_pan_genome.emapper.annotations", skip = 3) %>%
+  rename(orthogroup = `#query_name`,
+         functCat = `COG cat`) 
+
+eggnogFunctCat <- read_tsv("../09_gene_content_analysis/in/functCat_descriptions.tsv")
+
+CONJScan_genes <- CONJScan_genes %>%
+  left_join(clades) %>%
+  rename(gene = `#Hit_Id`) %>%
+  left_join(genes) %>%
+  left_join(orthogroups)
+
+
+```
+
+# Plantarum Group analysis
+
+Must read: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4027160/ 
+
+## How many hits per genome?
+
+
+```{r, fig.height=15, fig.width = 5}
+CONJScan_genes %>%
+  add_count(genome) %>%
+  select(genome, cladeName, n) %>%
+  distinct() %>%
+  ggplot(aes(x = genome, y = n)) +
+  geom_col() +
+  facet_grid(cladeName~., scales = "free_y", space = "free_y") +
+  coord_flip() +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+## How many hits per clade?
+
+```{r}
+conHits <- CONJScan_genes %>%
+  select(genome, cladeName) %>%
+  distinct() %>%
+  group_by(cladeName) %>%
+  summarise(numberofHits = n())
+
+clades %>%
+  group_by(cladeName) %>%
+  summarise(numberofGenomes = n()) %>%
+  left_join(conHits) %>%
+  replace_na(list(numberofHits = 0)) %>%
+  mutate(YES = numberofHits/numberofGenomes, NO = 1 - numberofHits/numberofGenomes) %>%
+  mutate(label = str_c(numberofHits, "/", numberofGenomes)) %>%
+  select(-starts_with("numberof")) %>%
+  gather(key = "Presence", value = "relabun", - cladeName, - label) %>%
+  mutate(cladeName = factor(cladeName, levels = c("L. mudanjiangensis",
+                                                  "L. fabifermentans",
+                                                  "L. xiangfangensis",
+                                                  "L. herbarum",
+                                                  "clade5a",
+                                                  "L. pentosus",
+                                                  "L. paraplantarum",
+                                                  "L. plantarum"))) %>%
+  ggplot(aes(x = cladeName, y = relabun, fill = Presence)) +
+  geom_col() +
+  geom_text(aes(y = -0.06, label = label)) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  xlab("") +
+  ylab("Amount of genomes with conjugation system (%)")
+```
+
+## What genes?
+
+```{r, fig.height = 10}
+CONJScan_genes %>%
+  ggplot(aes(x = genome, fill = Gene)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  facet_grid(cladeNumber_split~., scales = "free_y", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+## Write table that shows in which genomes a system was detected
+
+```{r}
+# Prepare the genomes that have a CONJ system
+conjSystem <- CONJScan_genes %>%
+  select(genome) %>%
+  distinct() %>%
+  mutate(conjSystem = "YES")
+
+read_tsv("../03_quality_control/genomeTable_full.tsv") %>%
+  select(Assembly, infraspecific_name) %>%
+  rename(genome = Assembly,
+         strain = infraspecific_name) %>%
+  left_join(clades %>% select(genome, cladeName)) %>%
+  mutate(strain = str_replace(strain, "strain=", "")) %>%
+  arrange(cladeName) %>%
+  left_join(conjSystem) %>%
+  replace_na(list(conjSystem = "NO")) %>%
+  write_tsv("out/genomes_and_conj_systems.tsv")
+
+
+```
+
+
+
+# L. mudanjiangensis analysis
+
+```{r}
+mudan <- CONJScan_genes %>% filter(cladeName == "L. mudanjiangensis")
+```
+
+## What genes are found?
+
+```{r}
+mudan %>%
+  ggplot(aes(x = genome, fill = Gene)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  facet_grid(~Gene, scales = "free_y", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+* In contrast to our previous analysis, we can't find any hits to DSM28402 anymore while for AMB-F209 and AMB-F249 we find 2 genes and even three genes for MOBQ for AMB-F249.
+
+
+## How are the hits annotated?
+
+```{r}
+mudan %>%
+  select(Gene, Description) %>%
+  distinct() %>%
+  arrange(Gene)
+```
+
+
+## What orthogroups?
+
+```{r}
+mudan %>%
+  ggplot(aes(x = genome, fill = orthogroup)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  facet_grid(~Gene, scales = "free_y", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+## Are these orthogroups shared with others?
+
+```{r}
+orthogroups %>%
+  filter(orthogroup %in% (mudan %>% pull(orthogroup) %>% unique())) %>%
+  left_join(clades) %>%
+  ggplot(aes(x = cladeName)) +
+  geom_bar() +
+  facet_wrap(~orthogroup, scales = "free_x") +
+  coord_flip()
+```
+
+Non of these orthogroups are unique for Mudanjiangensis.
+
+## Are these orthogroups found in other mudan?
+
+```{r}
+orthogroups %>%
+  filter(orthogroup %in% (mudan %>% pull(orthogroup) %>% unique())) %>%
+  left_join(clades) %>%
+  left_join(mudan) %>%
+  filter(cladeName == "L. mudanjiangensis") %>% 
+  ggplot(aes(x = genome, fill = Gene)) +
+  geom_bar() +
+  facet_wrap(~orthogroup, scales = "free_x") +
+  coord_flip()
+```
+
+**BE AWARE**: There is a possibility that AMB-F197 also carries a plasmid like this, but that it's just scattered due to bad sequencing/assembly. Although the other, acessory genes seem to be missing!
+
+
+## operon visualization
+
+
+Let's visualise the operon with gggenes:
+
+```{r}
+# Prepare the gene coordinates of all mudans
+gene_coordinates <- read.table("../12_genetables/out/geneTable_allGenomes.tsv", sep = ' ', col.names = c("contig", "genome", "start", "end", "strand", "gene")) %>%
+  filter(genome %in% mudan$genome) %>%
+  mutate(gene = str_sub(gene, 4, -1)) %>%
+  mutate(gene_split = gene) %>%
+  separate(gene_split, "_", into = c("genomeNumber", "geneNumber")) %>%
+  left_join(orthogroups)
+
+# Figure out the lowest and highest genenumber per genome
+lowest_and_highest_geneNumber_hit_per_genome <- mudan %>%
+  select(genome, gene) %>%
+  distinct %>%
+  separate(gene, "_", into = c("genomeNumber", "geneNumber")) %>%
+  group_by(genome, genomeNumber) %>%
+  summarise(low = min(geneNumber), high = max(geneNumber)) 
+
+```
+
+What's the difference between the lowest and highest gene number?
+
+```{r}
+lowest_and_highest_geneNumber_hit_per_genome %>%
+  mutate(difference = as.numeric(high) - as.numeric(low))
+```
+
+For DSM28402 this is only 11, while the other genes have a much higher difference. This could be due to the difference in copy number and the possibility that these multiple copies don't lay next to each other.
+
+Let's fix this by focussing on the MOBQ gene that seems to be the start of every operon (lowest gene number)
+
+``` {r}
+genes_of_interest <- tibble(
+  operonName = c(rep("AMB-F209_1",13), rep("AMB-F209_2",8), rep("AMB-F249_1",13), rep("AMB-F249_2",13), rep("AMB-F249_3",13), rep("L-Mudanjiangensis-DSM-28402_1",13)),
+  geneNumber = c(2837:2849, 3025:3032, 3322:3334, 3369:3357, 3430:3442, 3131:3143)
+) %>%
+  mutate(genome = str_extract(operonName, "^[^_]+(?=_)"),
+         geneNumber = str_c("0",as.character(geneNumber)))
+
+genes_to_plot <- genes_of_interest %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan)
+
+```
+
+
+
+
+```{r fig.width=10}
+genes_to_plot %>%
+  mutate(direction = if_else(strand == "+", 1, -1)) %>%
+  ggplot(aes(xmin = start, xmax = end, y = operonName, fill = Gene, forward = direction)) +
+  geom_gene_arrow() +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~operonName, scales  = "free", ncol = 1)
+```
+
+For AMBF-209_2: some of the genes are found at the end of the contig, others in the middle. Maybe this contig can be circulised? And then the whole operon can be completed!
+
+For AMBF-249_3: We did not find any other genes related to conjugation, so we will ditch it here.
+
+```{r}
+genes_to_plot <- genes_to_plot %>% filter(operonName != "AMB-F249_3")
+```
+
+Now let's work on making them all point to the same direction:
+
+```{r}
+# Now tweak the table for plotting in right direction
+genes_to_plot <- genes_to_plot %>%
+  mutate(start_duplicate = start,
+         end_duplicate = end) %>%
+  mutate(start = if_else(strand == "-", -end_duplicate, start_duplicate),
+         end = if_else(strand == "-", -start_duplicate, end_duplicate))
+```
+
+```{R, fig.width = 15}
+genes_to_plot %>%
+  mutate(direction = if_else(strand == "+", 1, -1)) %>%
+  ggplot(aes(xmin = start, xmax = end, y = operonName, fill = Gene)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = orthogroup)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~operonName, scales  = "free", ncol = 1) 
+```
+
+Cool stuff!
+
+Let's also colour by orthogroup
+
+```{R, fig.width = 15}
+genes_to_plot %>%
+  mutate(direction = if_else(strand == "+", 1, -1)) %>%
+  ggplot(aes(xmin = start, xmax = end, y = operonName, fill = orthogroup)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = Gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~operonName, scales  = "free", ncol = 1) 
+```
+
+Respons on e-mail regarding the functions:
+
+> - FATA_trsC 
+-> eq to VirB3
+> - FATA_trsD
+-> An homolog to the ATPase
+> - FATA_trsJ
+Last time I checked the function was not obvious.
+> - FATA_trsF
+
+I agree that can be very confusing. The nomenclature of these genes is a mess. To know what is what you can consult our paper in NAR (attached) and check Fig 3 and Fig4 (which has the drawing of pGO1). Note that the genes you mentioned had poorly characterized (or unknown) functions at the time. 
+
+
+## Manual curation of the gene clusters
+
+We want to have a complete view of the geneclusters, so I manually corrected them by adding 6 genes after t4cp2
+
+``` {r}
+genes_of_interest <- tibble(
+  operonName = c(rep("AMB-F209_1",19), rep("AMB-F209_2",8), rep("AMB-F249_1",15), rep("AMB-F249_2",19), rep("L-Mudanjiangensis-DSM-28402_1",18)),
+  geneNumber = c(2837:2855, 3025:3032, 3320:3334, 3351:3369, 3131:3148)
+) %>%
+  mutate(genome = str_extract(operonName, "^[^_]+(?=_)"),
+         geneNumber = str_c("0",as.character(geneNumber)))
+
+genes_to_plot <- genes_of_interest %>%
+  left_join(gene_coordinates) %>%
+  left_join(genes)%>%
+  left_join(CONJScan_genes)
+
+# Now tweak the table for plotting in right direction
+genes_to_plot <- genes_to_plot %>%
+  mutate(start_duplicate = start,
+         end_duplicate = end) %>%
+  mutate(start = if_else(strand == "-", -end_duplicate, start_duplicate),
+         end = if_else(strand == "-", -start_duplicate, end_duplicate)) %>%
+    mutate(operonName = if_else(operonName == "L-Mudanjiangensis-DSM-28402_1", "DSM-28402_1", operonName)) 
+```
+
+```{R, fig.width = 15, fig.height = 9}
+dummies <- make_alignment_dummies(
+  genes_to_plot  %>% replace_na(list(Gene = "NA")),
+  aes(xmin = start, xmax = end, y = operonName, id = Gene),
+  on = "MOBQ"
+)
+
+genes_to_plot %>%
+  replace_na(list(Gene = "NA")) %>%
+  mutate(direction = if_else(strand == "+", 1, -1)) %>%
+  ggplot(aes(xmin = start, xmax = end, y = operonName, fill = Gene)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_text(aes(x = start, y = operonName, label = orthogroup, angle = 40, vjust = -1.5, hjust = -0.2),size = 5) +
+  ggplot2::geom_blank(data = dummies) +
+  theme_genes() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        legend.title = element_blank(),
+        axis.text.y = element_text(face = "bold", size = 15),
+        legend.text = element_text(size = 10)) +
+  facet_wrap(~operonName, scales = "free", ncol = 1) +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02", "#7570B3", "#E7298A", "#66A61E", "lightgrey", "#E6AB02", "#A6761D"), 
+                    breaks = c("FATA_trsC", "FATA_trsD", "FATA_trsF", "FATA_trsJ", "MOBQ", "t4cp2", "virb4")) +
+  guides(fill = guide_legend(nrow = 1))
+
+ggsave("operon.pdf", plot = last_plot(), width = 15, height = 9)
+```
+
+```{r}
+write_tsv(genes_to_plot, "out/CONJScan_genes_toplot.tsv")
+```
+
+## Description of this operon based on manual analysis
+
+See separate file out/conjugation_operons_manually_curated.ods
+
+
+## Are these genes on plasmids NOT UPDATED?
+
+### Plasflow
+
+I've ran this tool called plasFlow which tries to classify if a region comes from a plasmid or not; Let's see whether these genes are indeed laying on a plasmid. 
+
+```{r eval=FALSE, include=FALSE}
+plasmids <- read_tsv("../14_plasmids/genes_contigs_plasmids.tsv") %>%
+  rename(gene = geneNumber)
+
+mudan %>%
+  left_join(plasmids) %>%
+  ggplot(aes(x = genome, fill = DNAstructure)) +
+  geom_bar() +
+  coord_flip()
+```
+
+Okay, for AMB-F209 and AMB-F249 we did detect them on plasmids, while for L. mudan it is unclassified. Let's look closer into both plasmid as unclassified
+
+```{r eval=FALSE, fig.height=8, include=FALSE}
+plasmids %>%
+  filter(genome == "AMB-F249",
+         DNAstructure %in% c("plasmid", "unclassified")) %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = DNAstructure)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("AMB-F249")
+```
+
+
+```{r eval=FALSE, fig.height=12, include=FALSE}
+plasmids %>%
+  filter(genome == "FP-S18",
+         DNAstructure %in% c("plasmid", "unclassified")) %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = DNAstructure)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("FP-S18")
+```
+
+```{r eval=FALSE, fig.height=12, include=FALSE}
+plasmids %>%
+  filter(genome == "L-Mudanjiangensis-DSM-28402",
+         DNAstructure %in% c("plasmid", "unclassified")) %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = DNAstructure)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("L-Mudanjiangensis-DSM-28402")
+```
+
+Cool stuff! I think they are indeed laying on plasmids but we're not completely sure about it. So let's try another tool as well
+
+### Mob suite
+
+```{r eval=FALSE, include=FALSE}
+mob <- read_tsv("../14_plasmids/genes_contigs_plasmids_mobsuite.tsv") %>%
+  rename(gene = geneNumber) %>%
+  filter(cluster_id != "chromosome")
+
+mudan %>%
+  left_join(mob) %>%
+  ggplot(aes(x = genome, fill = cluster_id)) +
+  geom_bar() +
+  coord_flip()
+```
+
+
+Extremely similar results!
+
+```{r eval=FALSE, include=FALSE}
+mob %>%
+  filter(genome == "AMB-F249") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = cluster_id)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("AMB-F249")
+```
+
+```{r eval=FALSE, include=FALSE}
+mob %>%
+  filter(genome == "FP-S18") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = cluster_id)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("FP-S18")
+```
+
+```{r eval=FALSE, include=FALSE}
+mob %>%
+  filter(genome == "L-Mudanjiangensis-DSM-28402") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = Gene, colour = cluster_id)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("L-Mudanjiangensis-DSM-28402")
+```
+
+All very similar results! Cool!
+
+### What other genes are on the plasmids?
+
+#### DSM28402
+
+For simplicity we will be using DSM 28402 first! 
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_DSM <- mob %>%
+  filter(genome == "L-Mudanjiangensis-DSM-28402") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) 
+```
+
+Some explorary plots
+
+```{R eval=FALSE, include=FALSE}
+mudan_plasmid_genes_DSM %>%
+  ggplot(aes(x = geneNumber, y = Length)) +
+  geom_point() +
+  coord_flip()
+```
+
+
+```{R eval=FALSE, include=FALSE}
+mudan_plasmid_genes_DSM %>%
+  ggplot(aes(x = geneNumber, y = `%GC`)) +
+  geom_point() +
+  coord_flip()
+```
+
+What categories are enriched?
+
+```{r eval=FALSE, include=FALSE}
+func_cat_plasmids_DSM <- mudan_plasmid_genes_DSM %>%
+  left_join(eggnog) %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat)
+
+func_cat_plasmids_DSM %>%
+  select(orthogroup, functCat) %>%
+  distinct() %>%
+  group_by(functCat) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, ": ", description)) %>%
+  ggplot(aes(x = reorder(functCatDescription, -n), y = n)) +
+  geom_col(fill = "#1f77b4") +
+  geom_text(aes(y = -2, label = n)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  ylab("Orthogroup count") +
+  xlab("")
+```
+
+Are the genes found on this plasmid also found in the other mudan strains?
+
+```{r eval=FALSE, include=FALSE}
+orthogroups %>%
+  filter(orthogroup %in% (mudan_plasmid_genes_DSM %>% pull(orthogroup))) %>%
+  left_join(clades) %>%
+  filter(cladeName == "L. mudanjiangensis") %>%
+  ggplot(aes(x = orthogroup, fill = genome)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+Which are shared with F209, F249 and not with F197
+
+
+```{r eval=FALSE, include=FALSE}
+shared_F209_F249_DSM28402 <-orthogroups %>%
+  filter(genome %in% c("AMB-F249", "FP-S18", "L-Mudanjiangensis-DSM-28402", "AMB-F197")) %>%
+  select(-gene) %>%
+  distinct %>%
+  mutate(presence = 1) %>%
+  spread(key = "genome", value = "presence") %>%
+  replace_na(list("AMB-F249" = 0, "FP-S18" = 0, "L-Mudanjiangensis-DSM-28402" = 0, "AMB-F197" = 0)) %>%
+  mutate(sum = `AMB-F197`+ `FP-S18` + `L-Mudanjiangensis-DSM-28402`+ `AMB-F249`) %>%
+  filter(sum == 3 & `AMB-F197`== 0)
+
+
+mudan_plasmid_genes_DSM %>%
+  mutate(unique = if_else(orthogroup %in% (shared_F209_F249_DSM28402 %>% pull(orthogroup)), "YES", "NO")) %>%
+  ggplot(aes(xmin = start, xmax = end, y = contig, fill = unique)) +
+  geom_gene_arrow(arrowhead_width = unit(2, "mm"), arrow_body_height = unit(8, "mm"), arrowhead_height = unit(8, "mm")) +
+  geom_gene_label(aes(label = gene)) +
+  theme_genes() +
+  theme(legend.position = "bottom") +
+  ggtitle("L-Mudanjiangensis-DSM-28402")
+```
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_DSM %>%
+  select(contigNumber, genome, gene, Description, orthogroup, Gene) %>%
+  mutate(unique = if_else(orthogroup %in% (shared_F209_F249_DSM28402 %>% pull(orthogroup)), "YES", "NO")) %>%
+  write_tsv("plasmid_genes_DSM2840T.tsv")
+```
+
+Let's look at all those 50 genes and try to figure out what kind of genes could be found on the plasmids.
+
+- OG0000152: Multicopper oxidase mco -> resistentie tegen koper maar ook misschien biogene amine degradatie (https://link.springer.com/article/10.1007/s00253-013-4829-6)
+- OG0003521: Major Facilitator superfamilu -> transports stuff
+- OG0000004: Resolvase or recombinase -> recombination of DNA molecules
+- OG0000092: Probably a transposase
+- OG0002086: ATPase -> has a high pH optimum -> can probably be used against alkaline stress.
+- OG0000397: Nucleoside 2-deoxyribosyltransferase; Nucleoside 2-deoxyribosyltransferase EC:2.4.2.6 catalyzes the cleavage of the glycosidic bonds of 2`-deoxyribonucleosides.
+- **OG0003517**: type III secretion system protein PrgO -> Impossible that it's a type III secretion system protein. Maybe it hase some to do with our pili??
+- OG0000052: Protein transport? Maybe for EPS?
+- OG0002844: Necessary for plasmid replication
+- OG0000049: Transposase
+- OG0002654: Transposase
+- _OG0002654_: Damage inducible protein J -> Necessary for keeping plasmids (RelB_DinJ) (toxin-anti toxin system)
+- _OG0002806_: Hypothetical protein -> Maybe PemK-like -> another addiction molecule (toxin)
+- OG0000076: Hypothetical protein -> Nobody knows anything of this molecule, like John Snow
+- OG0000084: Hypothetical protein -> Same as above
+- OG0000056: MOBQ -> Nickase
+- _**OG0002872**_: Hypothetical protein -> Totally unkown but unique for the three SEM strains! Lays in the conjugation operon
+- _**OG0002901**_: Hypothetical protein -> Totally unkown but unique for the three SEM strains! Lays in the conjugation operon
+- _**OG0002933**_: Conjugal transfer protein -> not found by CONJScan. Has a conserved domain annotated as: T4SS_CagC is a family of putative pathogenicity island, type IV, conjugal DNA-protein transfer, secretory system proteins from Gram-negative bacteria. **This is interesting** because CagC is shown as a VirB2 analague -> which is the pillus subunit! http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0142606 **<- TOP TARGET | unique for SEM strains**
+- OG0002946: trsC
+- OG0002902: trsD
+- OG0002895: trsE of Virb4
+- OG0002921: trsF -> contains conserved domain: WXG100 protein secretion system (Wss), protein YukC; Members of this family of proteins include predicted membrane proteins homologous to YukC in B. subtilis. The YukC protein family would participate to the formation of a translocon required for the secretion of WXG100 proteins (pfam06013) in monoderm bacteria, the WXG100 protein secretion system (Wss). This family includes EssB in Staphylococcus aureus.
+- _**OG0002755**_ -> !Contains a CHAP domain! -> "This domain corresponds to an amidase function. Many of these proteins are involved in cell wall metabolism of bacteria". There are other papers describing autolytic function with the CHAP domain and involvement with adhesion!:
+-- The Adhesion of Lactobacillus salivarius REN to a Human Intestinal Epithelial Cell Line Requires S-layer Proteins: https://www.nature.com/articles/srep44029 
+-- TgaA, a VirB1-Like Component Belonging to a Putative Type IV Secretion System of Bifidobacterium bifidum MIMBb75: http://aem.asm.org/content/80/17/5161.full 
+- _**OG0002768**_: Hypothetical protein -> Totally unkown but unique for the three SEM strains! Lays in the conjugation operon
+- OG0002937: trsJ
+- OG0002918: t4cp2
+- **OG0003070**: Hypothetical protein -> no clue -> also belongs to conjugation plasmid but not unique
+- **OG0002831**: Hypothetical protein -> no clue -> also belongs to conjugation plasmid but not unique
+- **OG0002899**: Hypothetical protein -> no clue -> also belongs to conjugation plasmid but not unique
+- OG0000037: DNA topisomerase
+- **OG0000159**: Hypothetical protein -> no clue -> also belongs to conjugation plasmid but not unique
+- **OG0000089**: Possible LtrC protein -> but I don't know more about it
+- OG0000124: Type I site-specific deoxyribonuclease specificity subunit -> cleaves DNA
+- OG0002679: Type I restriction-modification system, M subunit -> cleaving DNA
+- OG0002725: Type I restriction-modification system, restriction subunit -> cleaving DNA
+- OG0002519: Hypothetical protein
+- OG0002927: NrdI family protein: Ribonucleotide reductases (RNRs) are enzymes that provide the precursors of DNA synthesis. The three characterized classes of RNRs differ by their metal cofactor and their stable organic radical. The exact function of nrdI within the ribonucleotide reductases has not yet been fully characterised. [Purines, pyrimidines, nucleosides, and nucleotides, 2'-Deoxyribonucleotide metabolism]
+- OG0002922: Formation of deoxyribonucleotides from ribonucleotides, enzymes that provide the precursors of DNA synthesis.
+- OG0002938: Formation of deoxyribonucleotides from ribonucleotides, enzymes that provide the precursors of DNA synthesis.
+- OG0002923: Formation of deoxyribonucleotides from ribonucleotides, enzymes that provide the precursors of DNA synthesis.
+- OG0003568: TetR transcriptional regulator
+- OG0000004: recombinase
+- OG0000192: DNA-polymerase
+- OG0000400 -> Hypothetical cytosolic protein; unique to the SEM
+- _OG0003502_ -> Not so good characterized: Maybe GlsB Bile salt resistance (https://academic.oup.com/jid/article/191/3/472/796852) or glycohydrolase or GlsB/YeaQ/YmgE family stress response membrane protein; unique to the SEM strains
+- _OG0003501_: Asp23 Alkaline shock protein -> One of the most abundant proteins in the cytosolic protein fraction of stationary S. aureus cells. The overall function for the family is thus a cell envelope-related one in Gram-positive bacteria.; unique to the SEM strains
+- _OG0003500_: DUF2273 domain containing protein -> is gelinkt met AmaP maar functie ongekend; unique to the SEM strains
+- _OG0003519_: alkaline shock response membrane anchor protein AmaP -> Anchors Asp23 to the cell wall; unique to the SEM strains (https://onlinelibrary.wiley.com/doi/full/10.1111/mmi.12733)
+- OG0003619: hypothetical protein
+- OG0004122: transposase
+- OG0004544: transposase
+
+This paper about plasmids in reuteri is interesting:
+https://link.springer.com/article/10.1007/s13765-017-0264-1 
+
+
+#### AMBF249
+
+Repeat this analysis for AMBF249
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF249 <- mob %>%
+  filter(genome == "AMB-F249") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) 
+```
+
+Are the genes found on this plasmid also found in the other mudan strains?
+
+```{r eval=FALSE, include=FALSE}
+orthogroups %>%
+  filter(orthogroup %in% (mudan_plasmid_genes_AMBF249 %>% pull(orthogroup))) %>%
+  left_join(clades) %>%
+  filter(cladeName == "L. mudanjiangensis") %>%
+  ggplot(aes(x = orthogroup, fill = genome)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+Now let's look at the genes. Only the ones that were not found on DSM28402 plasmid!
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF249 %>%
+  select(contigNumber, genome, gene, Description, orthogroup, Gene) %>%
+  mutate(inDSM = if_else(orthogroup %in% (mudan_plasmid_genes_DSM %>% pull(orthogroup)), "YES", "NO")) %>%
+  write_tsv("plasmid_genes_AMBF249.tsv")
+
+```
+
+contig: FAIDKENN_27
+
+- _FAIDKENN_03316_: Not in an orthogroup, so unique to AMB-F249 -> 2,4-dienoyl-CoA reductase (NADPH) with conserved domain as Old yellow enzyme (OYE)-related FMN binding domain, group. Don't really understand what this does. Involved with breakdown of fatty acids? -> seem to be found in leuconostoc
+- OG0004140: Alpha/beta hydrolase -> alpha/beta hydrolase-fold family includes peptidases, lipases, esterases and dehalogenase. Very broad role -> seems to be found in leuconostoc and streptococcus
+- OG0003641: NAPD-dependent oxidoreductase -> also found in leuconostoc and streptococcus, no other lactobacillus.
+- OG0004141: transcriptional regulator.
+
+
+__
+
+
+- **OG0002824**: BLAST gave a specific hit: **Cellulose biosynthesis protein BcsQ**. Possibly involved with cellulose synthesis? This Trends in Microbiology paper is an interesting primer: https://www.sciencedirect.com/science/article/pii/S0966842X15001201 -> It also states that BscQ is often missanotated as chromosome partitioning ATPase! Futhermore it's along the genes with the lowes GC content
+- OG0003455: hypothetical protein
+- OG0003624: hypothetical protein
+- OG0000110: Big protein -> conserved domain with a DNA replication initiator.
+- OG0000065: Hypothetical protein
+- OG0002932: ATPase
+
+
+__
+
+
+- OG0006793: hypothetical protein
+
+
+__
+
+
+- OG0002745: Thioredoxin -> oxidative stress
+
+
+contig: FAIDKENN_28
+
+- OG0002932:
+- OG0002865: This gene is split up in three, but they all end up in the same orthogroup; possibly an ATPase.
+
+
+__
+
+
+- OG0006794: Nucleoside 2-deoxyribosyltransferase
+
+
+contig: FAIDKENN_30
+
+- OG0002926: Hypothetical protein
+
+
+__
+
+
+- OG0003063: hypothetical protein
+- OG0002896: hypothetical protein
+- OG0006795: Transcriptional regulator (LysR)
+- OG0005257: SDR_c -> functionally diverse family of oxidoreductases
+- OG0006158: nitroreductase
+- OG0000000: ISLP1 family transposase-like protein [Lactobacillus helveticus H9]
+
+
+__
+
+
+- OG0005258: DNA-binding transcriptional regulator of sugar metabolism
+
+
+__ (1 gene)
+
+
+- OG0002529: LPXTG cell wall anchor domain-containing protein 
+
+** CONTIGS WITH LESS THAN 10 GENES ARE IGNORED**
+
+ 
+#### AMBF209 (FP-S18)
+
+
+Repeat this analysis for AMBF209
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF209 <- mob %>%
+  filter(genome == "FP-S18") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) 
+```
+
+Are the genes found on this plasmid also found in the other mudan strains?
+
+```{r eval=FALSE, include=FALSE}
+orthogroups %>%
+  filter(orthogroup %in% (mudan_plasmid_genes_AMBF209 %>% pull(orthogroup))) %>%
+  left_join(clades) %>%
+  filter(cladeName == "L. mudanjiangensis") %>%
+  ggplot(aes(x = orthogroup, fill = genome)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+Now let's look at the genes. Only the ones that were not found on DSM28402 or AMB-F249 plasmid!
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF209 %>%
+  select(contigNumber, genome, gene, Description, orthogroup, Gene) %>%
+  mutate(inOtherPlasmids = if_else(orthogroup %in% (mudan_plasmid_genes_DSM %>% pull(orthogroup)), "YES", "NO")) %>%
+  mutate(inOtherPlasmids = if_else(orthogroup %in% (mudan_plasmid_genes_AMBF249 %>% pull(orthogroup)),"YES", inOtherPlasmids)) %>%
+  write_tsv("plasmid_genes_AMBF209.tsv")
+
+```
+
+contig: GAGPFIDG_27
+
+- OG0002229: pyridine nucleotide-disulfide oxidoreductase
+- OG0000311: DNA-binding ferritin-like protein (oxidative damage protectant) 
+
+
+__
+
+
+- OG0005724: Uncharacterized membrane protein YfcA
+- OG0005745: Permease
+- OG0005723: NADH-flavin reductase
+- OG0003283: Hypothetical protein
+
+
+__
+
+
+- **OG0003667**: Putative glycosyl transferase 
+- **OG0003763**: Putative glycosyl transferase
+
+
+contig: GAGPFIDG_32
+
+
+** CONTIGS WITH LESS THAN 10 GENES ARE IGNORED**
+
+
+#### AMBF197
+
+Repeat this analysis for AMBF197
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF197 <- mob %>%
+  filter(genome == "AMB-F197") %>%
+  left_join(genes) %>%
+  left_join(orthogroups) %>%
+  left_join(gene_coordinates) %>%
+  left_join(mudan) 
+```
+
+Are the genes found on this plasmid also found in the other mudan strains?
+
+```{r eval=FALSE, include=FALSE}
+orthogroups %>%
+  filter(orthogroup %in% (mudan_plasmid_genes_AMBF197 %>% pull(orthogroup))) %>%
+  left_join(clades) %>%
+  filter(cladeName == "L. mudanjiangensis") %>%
+  ggplot(aes(x = orthogroup, fill = genome)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2")
+```
+
+Now let's look at the genes. Only the ones that were not found on DSM28402 or AMB-F249 or AMB-F209 plasmid!
+
+```{r eval=FALSE, include=FALSE}
+mudan_plasmid_genes_AMBF197 %>%
+  select(contigNumber, genome, gene, Description, orthogroup, Gene) %>%
+  mutate(inOtherPlasmids = if_else(orthogroup %in% (mudan_plasmid_genes_DSM %>% pull(orthogroup)), "YES", "NO")) %>%
+  mutate(inOtherPlasmids = if_else(orthogroup %in% (mudan_plasmid_genes_AMBF249 %>% pull(orthogroup)),"YES", inOtherPlasmids)) %>%
+  mutate(inOtherPlasmids = if_else(orthogroup %in% (mudan_plasmid_genes_AMBF209 %>% pull(orthogroup)),"YES", inOtherPlasmids)) %>%
+  write_tsv("plasmid_genes_AMBF197.tsv")
+
+```
+
+
+contig: PKPKKMFI_14
+
+- OG0006131: hypothetical protein
+- OG0005722: hypothetical protein
+- OG0004440: hypothetical protein
+- OG0003215: has 88% ident with isopeptide-forming domain-containing fimbrial protein
+- OG0003054: hypothetical protein
+
+# Checke end of FAIDKEN_27
+
+```{r eval=FALSE, include=FALSE}
+test <- genes %>% 
+  left_join(orthogroups) %>% 
+  filter(orthogroup == "OG0002831") %>% 
+  left_join(clades) %>%
+  filter(cladeNumber_split == "clade1") %>%
+  ggplot(aes(y = genome, x = Length)) +
+  geom_point()
+```
+
+

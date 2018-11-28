@@ -1,0 +1,305 @@
+Assembly	species	cladeNumber	subspecies	strain	cladeNumber_split	cladeName
+AMB-F197	isolate	clade1			clade1	L. mudanjiangensis
+AMB-F209	isolate	clade1			clade1	L. mudanjiangensis
+AMB-F249	isolate	clade1			clade1	L. mudanjiangensis
+GCA_000023085	plantarum	clade7		JDM1	clade7	L. plantarum
+GCA_000143745	plantarum	clade7	subsp. plantarum	ATCC 14917	clade7	L. plantarum
+GCA_000148815	plantarum	clade7	subsp. plantarum	ST-III	clade7	L. plantarum
+GCA_000203855	plantarum	clade7		WCFS1	clade7	L. plantarum
+GCA_000247735	plantarum	clade7	subsp. plantarum		clade7	L. plantarum
+GCA_000271445	pentosus	clade5		KCA1	clade5a	clade5a
+GCA_000338115	plantarum	clade7		ZJ316	clade7	L. plantarum
+GCA_000347515	plantarum	clade7		UCMA 3037	clade7	L. plantarum
+GCA_000392485	plantarum	clade7	subsp. plantarum	plantarum	clade7	L. plantarum
+GCA_000410795	plantarum	clade7		IPLA88	clade7	L. plantarum
+GCA_000412205	plantarum	clade7		16	clade7	L. plantarum
+GCA_000463075	plantarum	clade5		EGD-AQ4	clade5a	clade5a
+GCA_000466845	plantarum	clade7		2165	clade7	L. plantarum
+GCA_000466905	plantarum	clade7		2025	clade7	L. plantarum
+GCA_000469115	plantarum	clade6		AY01	clade6	L. paraplantarum
+GCA_000473935	plantarum	clade7		LP91	clade7	L. plantarum
+GCA_000474695	plantarum	clade7		WJL	clade7	L. plantarum
+GCA_000498955	fabifermentans	clade2		DSM 21115	clade2	L. fabifermentans
+GCA_000507045	plantarum	clade7		4_3	clade7	L. plantarum
+GCA_000565485	fabifermentans	clade2		T30PCM01	clade2	L. fabifermentans
+GCA_000604105	plantarum	clade7		DOMLa	clade7	L. plantarum
+GCA_000604145	plantarum	clade7		WHE 92	clade7	L. plantarum
+GCA_000604365	plantarum	clade7		19L3	clade7	L. plantarum
+GCA_000615325	plantarum	clade7	subsp. plantarum	JCM 1149	clade7	L. plantarum
+GCA_000648755	plantarum	clade7	subsp. plantarum	wikim18	clade7	L. plantarum
+GCA_000687495	plantarum	clade7		AG30	clade7	L. plantarum
+GCA_000731855	plantarum	clade7		Lp90	clade7	L. plantarum
+GCA_000743895	plantarum	clade7		DmCS_001	clade7	L. plantarum
+GCA_000758145	paraplantarum	clade6		L-ZS9	clade6	L. paraplantarum
+GCA_000762955	plantarum	clade7		CMPG5300	clade7	L. plantarum
+GCA_000764285	plantarum	clade7		FMNP01	clade7	L. plantarum
+GCA_000830535	plantarum	clade7		90sk	clade7	L. plantarum
+GCA_000931425	plantarum	clade7		B21	clade7	L. plantarum
+GCA_000956195	plantarum	clade7		CIP104448	clade7	L. plantarum
+GCA_000966475	plantarum	clade7		NL42	clade7	L. plantarum
+GCA_001005695	plantarum	clade7		TIFN101	clade7	L. plantarum
+GCA_001005805	plantarum	clade7		PS128	clade7	L. plantarum
+GCA_001010175	plantarum	clade7		8 RA-3	clade7	L. plantarum
+GCA_001039045	herbarum	clade4		TCF032-E4	clade4	L. herbarum
+GCA_001188985	pentosus	clade5		FL0421	clade5b	L. pentosus
+GCA_001267905	plantarum	clade7		L31-1	clade7	L. plantarum
+GCA_001272315	plantarum	clade7	subsp. plantarum	CGMCC 1.557	clade7	L. plantarum
+GCA_001273585	plantarum	clade7		SNU.Lp177	clade7	L. plantarum
+GCA_001278015	plantarum	clade7		5-2	clade7	L. plantarum
+GCA_001296095	plantarum	clade7		ZS2058	clade7	L. plantarum
+GCA_001302645	plantarum	clade7		HFC8	clade7	L. plantarum
+GCA_001307325	plantarum	clade7		WJL	clade7	L. plantarum
+GCA_001308305	plantarum	clade7		Nizo2877	clade7	L. plantarum
+GCA_001331925	plantarum	clade7		WLPL04	clade7	L. plantarum
+GCA_001368775	plantarum	clade7		80	clade7	L. plantarum
+GCA_001433755	pentosus	clade5		DSM 20314	clade5b	L. pentosus
+GCA_001434175	plantarum	clade7	subsp. plantarum	CGMCC 1.2437	clade7	L. plantarum
+GCA_001435215	plantarum	clade7	subsp. argentoratensis	DSM 16365	clade7	L. plantarum
+GCA_001435655	paraplantarum	clade6		DSM 10667	clade6	L. paraplantarum
+GCA_001436855	plantarum	clade7		DSM 13273	clade7	L. plantarum
+GCA_001438845	xiangfangensis	clade3		LMG 26013	clade3	L. xiangfangensis
+GCA_001443645	paraplantarum	clade6		L-ZS9	clade6	L. paraplantarum
+GCA_001444495	plantarum	clade7		CRL 1506	clade7	L. plantarum
+GCA_001484005	plantarum	clade7		LZ95	clade7	L. plantarum
+GCA_001540925	plantarum	clade7		Lp1610	clade7	L. plantarum
+GCA_001540965	plantarum	clade7		Lp1612	clade7	L. plantarum
+GCA_001581895	plantarum	clade7		Zhang-LL	clade7	L. plantarum
+GCA_001595615	plantarum	clade7		43-3	clade7	L. plantarum
+GCA_001596095	plantarum	clade7		JBE245	clade7	L. plantarum
+GCA_001596195	plantarum	clade7		E2C2	clade7	L. plantarum
+GCA_001597605	plantarum	clade7		E2C5	clade7	L. plantarum
+GCA_001617525	plantarum	clade7		CAUH2	clade7	L. plantarum
+GCA_001619265	plantarum	clade7		FBR5	clade7	L. plantarum
+GCA_001619275	plantarum	clade7		FBR4	clade7	L. plantarum
+GCA_001619295	plantarum	clade7		FBR6	clade7	L. plantarum
+GCA_001633245	plantarum	clade7		ER	clade7	L. plantarum
+GCA_001633255	plantarum	clade7		NAB2	clade7	L. plantarum
+GCA_001633265	plantarum	clade7		19.1	clade7	L. plantarum
+GCA_001633285	plantarum	clade7		CNW10	clade7	L. plantarum
+GCA_001633325	plantarum	clade7		Nizo2484	clade7	L. plantarum
+GCA_001633335	plantarum	clade7		Nizo2485	clade7	L. plantarum
+GCA_001633355	plantarum	clade7		Nizo2494	clade7	L. plantarum
+GCA_001633385	plantarum	clade7		Nizo2726	clade7	L. plantarum
+GCA_001633405	plantarum	clade7		Nizo2535	clade7	L. plantarum
+GCA_001633415	plantarum	clade7		Nizo2741	clade7	L. plantarum
+GCA_001633435	plantarum	clade7		Nizo2753	clade7	L. plantarum
+GCA_001633455	plantarum	clade7		Nizo2776	clade7	L. plantarum
+GCA_001633485	plantarum	clade7		Nizo2757	clade7	L. plantarum
+GCA_001633495	plantarum	clade7		Nizo2766	clade7	L. plantarum
+GCA_001633505	plantarum	clade7		Nizo2830	clade7	L. plantarum
+GCA_001633545	plantarum	clade7		Nizo2802	clade7	L. plantarum
+GCA_001633565	plantarum	clade7		Nizo2801	clade7	L. plantarum
+GCA_001633575	plantarum	clade7		Nizo2814	clade7	L. plantarum
+GCA_001633595	plantarum	clade7		Nizo2831	clade7	L. plantarum
+GCA_001633605	plantarum	clade7		Nizo2806	clade7	L. plantarum
+GCA_001633645	plantarum	clade7		Nizo2855	clade7	L. plantarum
+GCA_001633665	plantarum	clade7		Nizo2891	clade7	L. plantarum
+GCA_001633675	plantarum	clade7		Nizo2889	clade7	L. plantarum
+GCA_001633685	plantarum	clade7		Nizo3400	clade7	L. plantarum
+GCA_001633725	plantarum	clade7		Nizo3894	clade7	L. plantarum
+GCA_001633745	plantarum	clade7		Nizo3893	clade7	L. plantarum
+GCA_001633765	plantarum	clade7		Nizo3892	clade7	L. plantarum
+GCA_001633775	plantarum	clade7		NAB1	clade7	L. plantarum
+GCA_001633805	plantarum	clade7		Nizo2256	clade7	L. plantarum
+GCA_001639425	plantarum	clade7		Nizo1838	clade7	L. plantarum
+GCA_001639445	plantarum	clade7		Nizo1839	clade7	L. plantarum
+GCA_001639455	plantarum	clade7		Nizo1840	clade7	L. plantarum
+GCA_001639485	plantarum	clade7		Nizo2029	clade7	L. plantarum
+GCA_001639505	plantarum	clade7		Nizo2257	clade7	L. plantarum
+GCA_001639525	plantarum	clade7		Nizo2258	clade7	L. plantarum
+GCA_001639545	plantarum	clade7		Nizo2259	clade7	L. plantarum
+GCA_001639565	plantarum	clade7		Nizo2260	clade7	L. plantarum
+GCA_001639585	plantarum	clade7		Nizo2262	clade7	L. plantarum
+GCA_001639595	plantarum	clade7		Nizo2263	clade7	L. plantarum
+GCA_001639625	plantarum	clade7		Nizo2264	clade7	L. plantarum
+GCA_001639645	plantarum	clade7		Nizo2457	clade7	L. plantarum
+GCA_001643065	plantarum	clade7		UC8491	clade7	L. plantarum
+GCA_001649985	plantarum	clade7		NRCC1	clade7	L. plantarum
+GCA_001651845	plantarum	clade7		Nizo1837	clade7	L. plantarum
+GCA_001659745	plantarum	clade7		LZ206	clade7	L. plantarum
+GCA_001660025	plantarum	clade7		LZ227	clade7	L. plantarum
+GCA_001660645	plantarum	clade6		MPL16	clade6	L. paraplantarum
+GCA_001662895	plantarum	clade7		SRCM101060	clade7	L. plantarum
+GCA_001672035	plantarum	clade7		NCU116	clade7	L. plantarum
+GCA_001675425	plantarum	clade7		TL2766	clade7	L. plantarum
+GCA_001704315	plantarum	clade7		KP	clade7	L. plantarum
+GCA_001704335	plantarum	clade7		DF	clade7	L. plantarum
+GCA_001704595	plantarum	clade7		PC520	clade7	L. plantarum
+GCA_001704645	plantarum	clade7		XJ25	clade7	L. plantarum
+GCA_001715615	plantarum	clade7		LY-78	clade7	L. plantarum
+GCA_001720285	plantarum	clade7		JSA22	clade7	L. plantarum
+GCA_001742965	plantarum	clade7		Kanjika2007	clade7	L. plantarum
+GCA_001754005	plantarum	clade7		CGMCC 8198	clade7	L. plantarum
+GCA_001754025	plantarum	clade7		LL441	clade7	L. plantarum
+GCA_001874125	plantarum	clade7		C410L1	clade7	L. plantarum
+GCA_001880185	plantarum	clade7		MF1298	clade7	L. plantarum
+GCA_001888245	plantarum	clade7		I61	clade7	L. plantarum
+GCA_001888255	plantarum	clade7		P22	clade7	L. plantarum
+GCA_001888265	plantarum	clade7		K35	clade7	L. plantarum
+GCA_001888275	plantarum	clade7		T10	clade7	L. plantarum
+GCA_001888325	plantarum	clade7		P31	clade7	L. plantarum
+GCA_001888335	plantarum	clade7		P42	clade7	L. plantarum
+GCA_001888345	plantarum	clade7		P26	clade7	L. plantarum
+GCA_001888355	plantarum	clade7		P62	clade7	L. plantarum
+GCA_001888405	plantarum	clade7		P67	clade7	L. plantarum
+GCA_001888415	plantarum	clade7		P86	clade7	L. plantarum
+GCA_001888425	plantarum	clade7		P73	clade7	L. plantarum
+GCA_001888465	plantarum	clade7		P76	clade7	L. plantarum
+GCA_001888485	plantarum	clade7		MHO2.4	clade7	L. plantarum
+GCA_001888495	plantarum	clade7		MHO2.5	clade7	L. plantarum
+GCA_001888505	plantarum	clade7		MHO2.9	clade7	L. plantarum
+GCA_001888525	plantarum	clade7		A3	clade7	L. plantarum
+GCA_001888565	plantarum	clade7		I08	clade7	L. plantarum
+GCA_001888575	plantarum	clade7		CIF17A2	clade7	L. plantarum
+GCA_001888585	plantarum	clade7		CIF17A4	clade7	L. plantarum
+GCA_001888595	plantarum	clade7		CIF17A5	clade7	L. plantarum
+GCA_001888645	plantarum	clade7		CIF17AN2	clade7	L. plantarum
+GCA_001888655	plantarum	clade7		DSM 2601	clade7	L. plantarum
+GCA_001888665	plantarum	clade7		DSM 20246	clade7	L. plantarum
+GCA_001888675	plantarum	clade7		CIF17AN8	clade7	L. plantarum
+GCA_001888725	plantarum	clade7		TISTR875	clade7	L. plantarum
+GCA_001888735	plantarum	clade7		299v	clade7	L. plantarum
+GCA_001888745	plantarum	clade7		K36	clade7	L. plantarum
+GCA_001888775	plantarum	clade7		P14	clade7	L. plantarum
+GCA_001908455	plantarum	clade7	subsp. plantarum	TS12	clade7	L. plantarum
+GCA_001981565	plantarum	clade7		RI-162	clade7	L. plantarum
+GCA_001981575	plantarum	clade7		RI-165	clade7	L. plantarum
+GCA_001981585	plantarum	clade7		RI-048	clade7	L. plantarum
+GCA_001981595	plantarum	clade7		RI-012	clade7	L. plantarum
+GCA_001981645	plantarum	clade7		RI-011	clade7	L. plantarum
+GCA_001981655	plantarum	clade7		RI-190	clade7	L. plantarum
+GCA_001981665	plantarum	clade7		RI-189	clade7	L. plantarum
+GCA_001981785	plantarum	clade7		RI-405	clade7	L. plantarum
+GCA_001981865	plantarum	clade7		RI-208	clade7	L. plantarum
+GCA_001981875	plantarum	clade7		RI-422	clade7	L. plantarum
+GCA_001981955	plantarum	clade7		RI-408	clade7	L. plantarum
+GCA_001981985	plantarum	clade7		RI-086	clade7	L. plantarum
+GCA_001982005	plantarum	clade7		RI-123	clade7	L. plantarum
+GCA_001982035	plantarum	clade7		RI-140	clade7	L. plantarum
+GCA_001982115	plantarum	clade7		RI-506	clade7	L. plantarum
+GCA_001982125	plantarum	clade7		RI-266	clade7	L. plantarum
+GCA_001982165	plantarum	clade7		RI-507	clade7	L. plantarum
+GCA_001982195	plantarum	clade7		RI-510	clade7	L. plantarum
+GCA_001982205	plantarum	clade7		RI-511	clade7	L. plantarum
+GCA_001982245	plantarum	clade7		RI-512	clade7	L. plantarum
+GCA_001982265	plantarum	clade7		RI-515	clade7	L. plantarum
+GCA_001982285	plantarum	clade7		RI-139	clade7	L. plantarum
+GCA_001982305	plantarum	clade7		RI-146	clade7	L. plantarum
+GCA_001982325	plantarum	clade7		RI-147	clade7	L. plantarum
+GCA_001982335	plantarum	clade7		RI-509	clade7	L. plantarum
+GCA_001982345	plantarum	clade7		RI-505	clade7	L. plantarum
+GCA_001982385	plantarum	clade7		RI-513	clade7	L. plantarum
+GCA_001982405	plantarum	clade7		RI-514	clade7	L. plantarum
+GCA_001990145	plantarum	clade7		RI-113	clade7	L. plantarum
+GCA_002005385	plantarum	clade7		10CH	clade7	L. plantarum
+GCA_002024845	plantarum	clade7		CLP0611	clade7	L. plantarum
+GCA_002028365	plantarum	clade7		KLDS1.0391	clade7	L. plantarum
+GCA_002109405	plantarum	clade7		JBE490	clade7	L. plantarum
+GCA_002109425	plantarum	clade7		LP2	clade7	L. plantarum
+GCA_002116955	plantarum	clade7		BLS41	clade7	L. plantarum
+GCA_002117245	plantarum	clade7		TMW 1.25	clade7	L. plantarum
+GCA_002117265	plantarum	clade7		TMW 1.277	clade7	L. plantarum
+GCA_002117285	plantarum	clade7		TMW 1.708	clade7	L. plantarum
+GCA_002117305	plantarum	clade7		TMW 1.1623	clade7	L. plantarum
+GCA_002165655	plantarum	clade7		S2T10D	clade7	L. plantarum
+GCA_002165715	plantarum	clade7		O2T60C	clade7	L. plantarum
+GCA_002165725	plantarum	clade7		S11T3E	clade7	L. plantarum
+GCA_002173655	plantarum	clade7		SRCM102022	clade7	L. plantarum
+GCA_002174195	plantarum	clade7	subsp. plantarum		clade7	L. plantarum
+GCA_002205775	plantarum	clade7		LPL-1	clade7	L. plantarum
+GCA_002211885	pentosus	clade5		SLC13	clade5b	L. pentosus
+GCA_002220175	plantarum	clade7		dm	clade7	L. plantarum
+GCA_002220815	plantarum	clade7		GB-LP1	clade7	L. plantarum
+GCA_002234395	plantarum	clade7		8 PA 3	clade7	L. plantarum
+GCA_002249825	plantarum	clade7		A6	clade7	L. plantarum
+GCA_002286275	plantarum	clade7		LP3	clade7	L. plantarum
+GCA_002290185	plantarum	clade7		BDGP2	clade7	L. plantarum
+GCA_002370925	plantarum	clade7		Lp820	clade7	L. plantarum
+GCA_002370965	plantarum	clade7		ATCC 8014	clade7	L. plantarum
+GCA_002370985	plantarum	clade7		Lp510	clade7	L. plantarum
+GCA_002407395	plantarum	clade7		NI326	clade7	L. plantarum
+GCA_002532115	plantarum	clade7		D13	clade7	L. plantarum
+GCA_002532125	plantarum	clade7		SF15C	clade7	L. plantarum
+GCA_002576835	plantarum	clade7		PC520	clade7	L. plantarum
+GCA_002631775	plantarum	clade7		ATCC 8014	clade7	L. plantarum
+GCA_002735815	plantarum	clade7		FlyG2.1.8	clade7	L. plantarum
+GCA_002737745	plantarum	clade7		FlyG8.1.1	clade7	L. plantarum
+GCA_002737775	plantarum	clade7		FlyG8.1.2	clade7	L. plantarum
+GCA_002737825	plantarum	clade7		FlyG9.1.4	clade7	L. plantarum
+GCA_002737835	plantarum	clade7		FlyG10.1.5	clade7	L. plantarum
+GCA_002737845	plantarum	clade7		FlyG20.1.4	clade7	L. plantarum
+GCA_002737885	plantarum	clade7		FlyG20.2.6	clade7	L. plantarum
+GCA_002737905	plantarum	clade7		FlyG11.2.6	clade7	L. plantarum
+GCA_002737925	plantarum	clade7		FlyG9.2.5	clade7	L. plantarum
+GCA_002737935	plantarum	clade7		DietG20.1.2	clade7	L. plantarum
+GCA_002737965	plantarum	clade7		FlyG11.1.6	clade7	L. plantarum
+GCA_002737975	plantarum	clade7		FlyG11.1.2	clade7	L. plantarum
+GCA_002737995	plantarum	clade7		DietG20.2.2_EE	clade7	L. plantarum
+GCA_002738045	plantarum	clade7		FlyG10.1.9	clade7	L. plantarum
+GCA_002738055	plantarum	clade7		FlyG3.1.8	clade7	L. plantarum
+GCA_002738065	plantarum	clade7		FlyG7.1.6	clade7	L. plantarum
+GCA_002749655	plantarum	clade7		ATCC 8014	clade7	L. plantarum
+GCA_002749875	plantarum	clade7		RI-393	clade7	L. plantarum
+GCA_002750575	plantarum	clade7		RI-191	clade7	L. plantarum
+GCA_002750675	plantarum	clade7		RI-203	clade7	L. plantarum
+GCA_002750695	plantarum	clade7		RI-265	clade7	L. plantarum
+GCA_002751765	plantarum	clade7		RI-029	clade7	L. plantarum
+GCA_002751855	pentosus	clade5		RI-031	clade5b	L. pentosus
+GCA_002850015	pentosus	clade5		BGM48	clade5b	L. pentosus
+GCA_002868755	plantarum	clade7		KC3	clade7	L. plantarum
+GCA_002868775	plantarum	clade7		K259	clade7	L. plantarum
+GCA_002872355	plantarum	clade7	subsp. plantarum	SRCM101520	clade7	L. plantarum
+GCA_002895245	plantarum	clade7		LM1004	clade7	L. plantarum
+GCA_002897175	paraplantarum	clade6		D2-1	clade6	L. paraplantarum
+GCA_002906095	plantarum	clade7	subsp. plantarum	SRCM101258	clade7	L. plantarum
+GCA_002906875	plantarum	clade7	subsp. plantarum	LB1-2	clade7	L. plantarum
+GCA_002914965	plantarum	clade7		LMG S-29189	clade7	L. plantarum
+GCA_002920935	plantarum	clade7		JMCC0013	clade7	L. plantarum
+GCA_002943545	plantarum	clade7		X7021	clade7	L. plantarum
+GCA_002948215	plantarum	clade7		KC28	clade7	L. plantarum
+GCA_002993385	pentosus	clade5		IG4	clade5b	L. pentosus
+GCA_002993395	pentosus	clade5		IG7	clade5b	L. pentosus
+GCA_002993425	pentosus	clade5		IG3	clade5b	L. pentosus
+GCA_002993435	pentosus	clade5		IG5	clade5b	L. pentosus
+GCA_002993465	pentosus	clade5		IG2	clade5b	L. pentosus
+GCA_002993485	pentosus	clade5		IG6	clade5b	L. pentosus
+GCA_002994725	plantarum	clade7		C4	clade7	L. plantarum
+GCA_003020005	plantarum	clade7		K25	clade7	L. plantarum
+GCA_003023825	plantarum	clade7		JDARSH	clade7	L. plantarum
+GCA_003045645	plantarum	clade7		AS-10	clade7	L. plantarum
+GCA_003045665	plantarum	clade7		AS-8	clade7	L. plantarum
+GCA_003045685	paraplantarum	clade6		AS-7	clade6	L. paraplantarum
+GCA_003045705	plantarum	clade7		AS-9	clade7	L. plantarum
+GCA_003045725	plantarum	clade7		AS-6	clade7	L. plantarum
+GCA_003046075	plantarum	clade7		PFC-311	clade7	L. plantarum
+GCA_003053025	plantarum	clade7		DS8_9	clade7	L. plantarum
+GCA_003053035	plantarum	clade7		DS18_9	clade7	L. plantarum
+GCA_003053045	plantarum	clade7		DS23_9	clade7	L. plantarum
+GCA_003053165	plantarum	clade7		DS3_9	clade7	L. plantarum
+GCA_003053185	plantarum	clade7		DS13_9	clade7	L. plantarum
+GCA_003061725	plantarum	clade7		DS6_9	clade7	L. plantarum
+GCA_003061765	plantarum	clade7		DS14_9	clade7	L. plantarum
+GCA_003061785	plantarum	clade7		DS9_9	clade7	L. plantarum
+GCA_003061805	plantarum	clade7		DS11_9	clade7	L. plantarum
+GCA_003076435	plantarum	clade7		plantarum	clade7	L. plantarum
+GCA_003097595	plantarum	clade7		LQ80	clade7	L. plantarum
+GCA_003143915	plantarum	clade7		HAC01	clade7	L. plantarum
+GCA_003258615	plantarum	clade7		EBKLp545	clade7	L. plantarum
+GCA_003269405	plantarum	clade7		SK151	clade7	L. plantarum
+GCA_003286955	plantarum	clade7		DSR_M2	clade7	L. plantarum
+GCA_003325395	plantarum	clade7		nF1	clade7	L. plantarum
+GCA_003325775	plantarum	clade7		CRL 681	clade7	L. plantarum
+GCA_900078525	plantarum	clade7		BFE 5092	clade7	L. plantarum
+GCA_900080205	plantarum	clade7			clade7	L. plantarum
+GCA_900092635	pentosus	clade5			clade5b	L. pentosus
+GCA_900095045	plantarum	clade7			clade7	L. plantarum
+GCA_900095055	plantarum	clade7			clade7	L. plantarum
+GCA_900095065	plantarum	clade7			clade7	L. plantarum
+GCA_900200135	plantarum	clade7			clade7	L. plantarum
+GCA_900289155	plantarum	clade7		CECT 8962	clade7	L. plantarum
+GCA_900290085	plantarum	clade7		CECT 8966	clade7	L. plantarum
+GCA_900290105	plantarum	clade7		CECT 8964	clade7	L. plantarum
+GCA_900290125	plantarum	clade7		CECT 8965	clade7	L. plantarum
+GCA_900290135	plantarum	clade7		CECT 8963	clade7	L. plantarum
+GCA_900452585	plantarum	clade7	subsp. plantarum	NCTC13644	clade7	L. plantarum
+L-Mudanjiangensis-DSM-28402	mudanjiangensis	clade1			clade1	L. mudanjiangensis

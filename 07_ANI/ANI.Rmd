@@ -1,0 +1,373 @@
+---
+title: "ANI"
+author: "Sander Wuyts"
+date: "27 August 2018"
+output: html_document
+---
+
+
+# Add clades to genomeTable based on ANI
+
+```{r}
+library(tidyverse)
+library(ggtree)
+library(ape)
+library(stringr)
+
+pin_qc = "~/serverUA/sander/mudan/03_quality_control/"
+pin_ani = "~/serverUA/sander/mudan/07_ANI/pyani_output/ANIb/"
+pout = "~/serverUA/sander/mudan/07_ANI/"
+
+# Following files are required as input:
+# - genomeTable.tsv
+# - genomeTableFull.tsv
+# - ANIb_percentage_identity.tab
+
+# read and parse tables
+p_genomeTable = paste(pin_qc, "genomeTable.tsv", sep = '')
+p_genomeTableFull = paste(pin_qc, "genomeTable_full.tsv", sep = '')
+p_ANItable = paste(pin_ani, "ANIb_percentage_identity.tab", sep = '')
+genomeTable = read_tsv(p_genomeTable, col_names = c("Assembly", "species")) 
+genomeTableFull = read_tsv(p_genomeTableFull, col_names = T) 
+ANIb = read.table(p_ANItable)
+
+# extract clades from ANI table
+clust = hclust(as.dist(1-ANIb))
+cladeNumbers = cutree(clust, 7) %>% 
+  tbl_df() %>% 
+  rownames_to_column("Assembly") %>% 
+  rename(cladeNumber = value)
+genomeTable <- genomeTable %>% left_join(cladeNumbers)
+
+# add subspecies name
+genomeTableFull$subspecies <- str_extract(genomeTableFull$organism_name,"(subsp\\.\\s)([a-z]+)")
+genomeTable <- genomeTable %>%
+  left_join(genomeTableFull %>% select(Assembly, subspecies, infraspecific_name)) %>%
+  mutate(strain = str_split_fixed(infraspecific_name, pattern = "=", n = 2)[,2]) %>%
+  select(-infraspecific_name)
+genomeTable[is.na(genomeTable$subspecies),"subspecies"] <- ""
+```
+
+```{r}
+genomeTable %>%
+  group_by(cladeNumber) %>%
+  count(species) %>% 
+  summarise(Relabun = max(n)/sum(n), Species = species[which.max(n)], Count = max(n)) 
+```
+
+Rename cladenumbers based on how it is written in publication
+
+```{r}
+genomeTable <- genomeTable %>%
+  mutate(cladeNumber = paste(cladeNumber, "X", sep="")) %>%
+  mutate(cladeNumber = recode(cladeNumber, `1X` = '7', 
+                              `2X` = '1',
+                              `3X` = '5',
+                              `4X` = '2',
+                              `5X` = '6',
+                              `6X` = '4',
+                              `7X` = '3')) %>%
+  mutate(cladeNumber = str_c("clade", cladeNumber, sep = ''))
+```
+
+
+```{R}
+# write genome table with clade names
+setwd(pout)
+write.table(genomeTable, file="genomeTableWithClades.tsv",
+            quote=F, col.names=T, row.names=F, sep="\t")
+```
+
+
+# Read in tree
+
+```{R}
+tree <- read.tree('~/serverUA/sander/mudan/06_phylogenetic_tree/raxml_out/RAxML_bipartitions.mudan')
+
+# Root tree
+tree_r <- ape::root(tree, "outgroup")
+# Remove outgroup
+tree_r_wooutroup <- drop.tip(tree_r, "outgroup")
+
+# Test ggtree
+p <- ggtree(tree_r_wooutroup) +  geom_tree()
+p
+
+# Get the label order
+d <- fortify(tree_r_wooutroup)
+dd <- subset(d, isTip)
+order <- dd$label[order(dd$y,decreasing=T)] 
+```
+
+
+# ANIb
+Read in data and reorder dataframes
+```{r}
+ANIb <- read.table("~/serverUA/sander/mudan/07_ANI/pyani_output/ANIb/ANIb_percentage_identity.tab")
+
+# Fix . to - 
+colnames(ANIb) <- gsub(".","-",colnames(ANIb),fixed=T) %>%
+  str_replace_all("GCA_","GCA-")
+
+rownames(ANIb) <- rownames(ANIb) %>%
+  str_replace_all("GCA_","GCA-")
+
+ANIb <- ANIb[order,order]
+
+ANIbplot <- gheatmap(p, ANIb,width=15,colnames=F, low="yellow", high="red",color=NA,offset=0.1) + 
+  ggtitle("ANIb") + scale_fill_gradient(high="#132B43",low="#56B1F7")
+ANIbplot
+```
+
+
+
+# TETRA
+
+```{r}
+TETRA <- read.table("~/serverUA/sander/mudan/07_ANI/pyani_output/TETRA/TETRA_correlations.tab")
+
+# Fix . to - 
+colnames(TETRA) <- gsub(".","-",colnames(TETRA),fixed=T) %>%
+  str_replace_all("GCA_","GCA-")
+
+rownames(TETRA) <- rownames(TETRA) %>%
+  str_replace_all("GCA_","GCA-")
+
+
+TETRA <- TETRA[order,order]
+
+TETRAplot <- gheatmap(p, TETRA,width=15,colnames=F, low="yellow", high="red",color=NA, offset=0.1)  + 
+  ggtitle("TETRA") + scale_fill_gradient(high="#132B43",low="#56B1F7")
+TETRAplot
+```
+
+# Combining
+
+```{R}
+library(gridExtra)
+grid.arrange(ANIbplot,TETRAplot,nrow=2)
+plot <- arrangeGrob(ANIbplot,TETRAplot,nrow=2)
+ggsave("Realplot.png",dpi=300,plot=plot,height=10)
+```
+
+# Statistics
+
+```{r}
+ANIb$Genome1 <- row.names(ANIb) %>%
+  str_replace_all("GCA-","GCA_")
+
+cladeNumbers <- genomeTable %>% 
+  select(cladeNumber, Assembly)
+
+ANI_tidy <- as_tibble(ANIb) %>%
+  gather(key = "Genome2", value = "ANI", -Genome1) %>%
+  mutate(Genome2 = str_replace(Genome2, "GCA-","GCA_")) %>%
+  left_join(cladeNumbers, by = c("Genome1" = "Assembly")) %>%
+  rename(cladeGenome1 = cladeNumber) %>%
+  left_join(cladeNumbers, by = c("Genome2" = "Assembly")) %>%
+  rename(cladeGenome2 = cladeNumber)  %>%
+  mutate(comparison = ifelse(cladeGenome1 == cladeGenome2, "Intraclade", "Interclade"))
+  
+  
+ANI_summary <- ANI_tidy %>% 
+  filter(cladeGenome1 == cladeGenome2) %>%
+  select(- cladeGenome2) 
+
+ANI_summary %>%
+  group_by(cladeGenome1) %>%
+  summarise(minANI = min(ANI), meanANI = mean(ANI))
+```
+
+```{r, fig.height = 8 , fig.width = 8}
+cladenames <- as_labeller(
+  c("clade1" = "italic(L.~mudanjiangensis)",
+    "clade2" = "italic(L.~fabifermentans)",
+    "clade3" = "italic(L.~xiangfangensis)",
+    "clade4" = "italic(L.~herbarum)",
+    "clade5" = "italic(L.~pentosus)",
+    "clade6" = "italic(L.~paraplantarum)",
+    "clade7" = "italic(L.~plantarum)"),
+  label_parsed
+)
+
+nmbrGenomes <- length(unique(ANI_summary$Genome1))
+
+ggplot(ANI_tidy, aes(x = ANI, fill = comparison, colour = comparison)) +
+  geom_density(aes(y = ..scaled..), alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  scale_fill_brewer(palette = "Dark2") +
+  geom_vline(xintercept = 0.95, colour = "red") +
+  facet_wrap(~cladeGenome2, scales = "free_y", nrow = 7, labeller = cladenames)  +
+  ylab("Density") +
+  theme(legend.title = element_blank(),
+                strip.background = element_blank()) +
+  ggtitle("Pairwise ANI comparisons")
+
+ggsave("ANI.png", width = 21, height = 29.7, units = 'cm')
+```
+
+Alternative visualisation
+
+```{r, fig.height = 8 , fig.width = 6}
+ggplot(ANI_tidy, aes(x = comparison,  y = ANI, colour = comparison, group = comparison)) + 
+  geom_jitter(alpha= 0.6, width= 0.3) +
+  geom_hline(aes(yintercept = 0.95),  colour = "red") +
+  scale_color_brewer(palette = "Paired") +
+  facet_wrap(~ cladeGenome1, ncol = 3) +
+  xlab("") + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+```
+Alternative visualisation
+
+```{r, fig.height = 8 , fig.width = 8}
+ggplot(ANI_tidy, aes(x = ANI,  y = 1 , colour = comparison, group = comparison)) + 
+  geom_jitter(alpha= 0.6, width= 0, size = 2) +
+  geom_vline(aes(xintercept = 0.95),  colour = "red", size = 1.5) +
+  scale_color_brewer(palette = "Dark2") +
+  facet_wrap(~ cladeGenome1, nrow = 7, labeller = cladenames) +
+  ylab("") +
+    theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        strip.background = element_blank(),
+        legend.title = element_blank()) +
+  ggtitle("Pairwise ANI comparisons")
+
+ggsave("ANI_V2.png", width = 21, height = 29.7, units = 'cm')
+
+
+```
+
+# Split clade 5 in two sub clades
+
+```{r}
+clade5 <- genomeTable %>% 
+  filter(cladeNumber == "clade5") %>%
+  pull(Assembly) %>%
+  str_replace("GCA_","GCA-")
+
+ANIb_clade5 <- ANIb[clade5, clade5]
+
+# extract clades from ANI table
+clust = hclust(as.dist(1-ANIb_clade5))
+clade5 <- cutree(clust, 2) %>% 
+  as_data_frame() %>%
+  rownames_to_column() %>%
+  rename(Assembly = rowname, cladeNumber = value) %>%
+  mutate(cladeNumber_split = str_c("clade",if_else(cladeNumber == 1, "5a", "5b")),
+         Assembly = str_replace(Assembly, "GCA-", "GCA_")) %>%
+  select(-cladeNumber)
+
+genomeTable <- genomeTable %>%
+  left_join(clade5) %>%
+  mutate(cladeNumber_split = if_else(is.na(cladeNumber_split), cladeNumber, cladeNumber_split))
+
+# Add cladename
+genomeTable <- genomeTable %>%
+  mutate(cladeName = case_when(cladeNumber_split == "clade1" ~ "L. mudanjiangensis",
+                               cladeNumber_split == "clade2" ~ "L. fabifermentans",
+                               cladeNumber_split == "clade3" ~ "L. xiangfangensis",
+                               cladeNumber_split == "clade4" ~ "L. herbarum",
+                               cladeNumber_split == "clade5a" ~ "clade5a",
+                               cladeNumber_split == "clade5b" ~ "L. pentosus",
+                               cladeNumber_split == "clade6" ~ "L. paraplantarum",
+                               cladeNumber_split == "clade7" ~ "L. plantarum")) %>%
+  mutate(cladeName = factor(cladeName, levels = c("L. mudanjiangensis",
+                                                  "L. fabifermentans",
+                                                  "L. xiangfangensis",
+                                                  "L. herbarum",
+                                                  "clade5a",
+                                                  "L. pentosus",
+                                                  "L. paraplantarum",
+                                                  "L. plantarum")))
+
+
+
+write.table(genomeTable, file="genomeTableWithClades.tsv",
+            quote=F, col.names=T, row.names=F, sep="\t")
+```
+
+Now let's redo the analysis/vis
+
+## Statistics
+
+```{r}
+ANIb$Genome1 <- row.names(ANIb) %>%
+  str_replace_all("GCA-","GCA_")
+
+cladeNumbers <- genomeTable %>% 
+  select(cladeNumber_split, Assembly)
+
+ANI_tidy <- as_tibble(ANIb) %>%
+  gather(key = "Genome2", value = "ANI", -Genome1) %>%
+  mutate(Genome2 = str_replace(Genome2, "GCA-","GCA_")) %>%
+  left_join(cladeNumbers, by = c("Genome1" = "Assembly")) %>%
+  rename(cladeGenome1 = cladeNumber_split) %>%
+  left_join(cladeNumbers, by = c("Genome2" = "Assembly")) %>%
+  rename(cladeGenome2 = cladeNumber_split)  %>%
+  mutate(comparison = ifelse(cladeGenome1 == cladeGenome2, "Intraclade", "Interclade"))
+  
+  
+ANI_summary <- ANI_tidy %>% 
+  filter(cladeGenome1 == cladeGenome2) %>%
+  select(- cladeGenome2) 
+
+ANI_summary %>%
+  group_by(cladeGenome1) %>%
+  summarise(minANI = min(ANI), meanANI = mean(ANI))
+```
+
+```{r, fig.height = 8 , fig.width = 8}
+nmbrGenomes <- length(unique(ANI_summary$Genome1))
+
+ggplot(ANI_tidy, aes(x = ANI, fill = comparison, colour = comparison)) +
+  geom_density(aes(y = ..scaled..), alpha = 0.8) +
+  scale_color_brewer(palette = "Dark2") + 
+  scale_fill_brewer(palette = "Dark2") +
+  geom_vline(xintercept = 0.95, colour = "red") +
+  facet_wrap(~cladeGenome2, scales = "free_y", nrow = 8)  
+```
+
+Alternative visualisation
+
+```{r, fig.height = 8 , fig.width = 6}
+ggplot(ANI_tidy, aes(x = comparison,  y = ANI, colour = comparison, group = comparison)) + 
+  geom_jitter(alpha= 0.6, width= 0.3) +
+  geom_hline(aes(yintercept = 0.95),  colour = "red") +
+  scale_color_brewer(palette = "Paired") +
+  facet_wrap(~ cladeGenome1, ncol = 2) +
+  xlab("") + 
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+```
+Alternative visualisation
+
+```{r, fig.height = 8 , fig.width = 8}
+cladenames2 <- as_labeller(
+  c("clade1" = "italic(L.~mudanjiangensis)",
+    "clade2" = "italic(L.~fabifermentans)",
+    "clade3" = "italic(L.~xiangfangensis)",
+    "clade4" = "italic(L.~herbarum)",
+    "clade5b" = "italic(L.~pentosus)",
+    "clade5a" = "paste('clade ',5, 'a')",
+    "clade6" = "italic(L.~paraplantarum)",
+    "clade7" = "italic(L.~plantarum)"),
+  label_parsed
+)
+ggplot(ANI_tidy, aes(x = ANI,  y = 1 , colour = comparison, group = comparison)) + 
+  geom_jitter(alpha= 0.6, width= 0, size = 2) +
+  geom_vline(aes(xintercept = 0.95),  colour = "red", size = 1.5) +
+  scale_color_brewer(palette = "Dark2") +
+  facet_wrap(~ cladeGenome1, nrow = 8, labeller = cladenames2) +
+  ylab("") +
+    theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        strip.background = element_blank(),
+        legend.title = element_blank()) +
+    ggtitle("Pairwise ANI comparisons after split")
+
+ggsave("ANI_V2_split.png", width = 21, height = 29.7, units = 'cm')
+
+```

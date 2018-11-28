@@ -1,0 +1,177 @@
+---
+title: "ICE analysis"
+author: "Sander Wuyts"
+date: "07 September 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(stringr)
+```
+
+This analysis is based on the methodology described in Cury et al. 2017, by finding elements in genomes flanked by core genes. I've tried it first with orthofinder approach and my own R analysis. Later I also tried out the Jupyter notebook. Unfortunately I ran into some problems, so I decided to read in the output of roary in here. I can then do the exact same approach but then using the roary data which is a little bit more sensitive in grouping genes together than Orthofinder is.
+
+# Orthofinder
+
+## Read in orthofinder and CONJscan results
+
+```{r message=FALSE}
+genomesofinterest <- c("AMB-F197", "AMB-F209", "AMB-F249", "L-Mudanjiangensis-DSM-28402")
+
+# Orthofinder results
+# By S. Wittouck
+tidy_orthofinder <- function(orthofinder_dir) {
+  
+  genes_assigned <- orthofinder_dir %>%
+    paste0("/Orthogroups.csv") %>%
+    readr::read_tsv(col_names = T) %>%
+    rename(orthogroup = X1) %>%
+    gather(key = "genome", value = "gene", na.rm = T, - orthogroup) %>%
+    separate_rows(gene, sep = ", ")
+  
+}
+# Read in orthogroup info
+orthogroups <- tidy_orthofinder("~/serverUA/sander/mudan/05_pangenome/Results_Sep03/") %>%
+  filter(genome %in% genomesofinterest)
+
+
+# Load the CONJScan files
+dirs <- list.dirs("../10_pili/out/CONJScan", recursive = F)
+dirs <- dirs[grep(paste(genomesofinterest, collapse = "|"), dirs)]
+
+files <- list.files(dirs, pattern = "macsyfinder.report", full.names = T)
+names(files) <- files
+
+CONJScan_genes <- map_df(files, read_tsv,
+                .id = "filename") %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "deleteme3",  "deleteme4", "file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme5"), fill = "right") %>%
+  mutate(genome = str_replace(genome, "_typeFATA", "")) %>%
+  select(-starts_with("deleteme")) %>%
+  rename(gene = `#Hit_Id`)
+```
+
+## Make core orthogroups
+
+```{r}
+# Figure out strict core orthogroups
+core_orthogroups <- orthogroups %>% 
+  group_by(orthogroup, genome) %>%
+  summarise(count = n()) %>%
+  group_by(orthogroup) %>%
+  summarise(count = n()) %>%
+  filter(count == 4) %>%
+  select(orthogroup) %>%
+  left_join(orthogroups %>% select(orthogroup, gene))
+```
+
+## For every core orthogroup define its previous and next core orthogroup
+
+```{r}
+core_orthogroups <- core_orthogroups %>%
+  arrange(gene) %>%
+  mutate(prevcoreOG = lag(orthogroup, n = 1),
+         nextcoreOG = lead(orthogroup, n = 1))
+
+  
+```
+
+## For every gene define it's previous and next core orthogroup
+
+The function that does the magict job here, is fill()
+
+```{r}
+orthogroups <- orthogroups %>%
+  left_join(core_orthogroups) %>%
+  arrange(gene) %>%
+  fill(prevcoreOG, nextcoreOG)
+
+```
+
+## Check with conjugation genes
+
+I'll be writing this to a table so that we can manually check it
+
+```{r}
+CONJScan_genes %>%
+  select(genome, gene, Gene) %>%
+  left_join(orthogroups) %>%
+  write_tsv("out_ICE_results.tsv")
+```
+
+## Conclusion
+
+The result amazed me! AMB-F209_1, AMB-F249_2 and L-Mudanjiangensis-DSM-28402 all have OG0000097 and OG0003111 at their boundaries! The others do not, which perfectly adds up with the fact that they are plasmids. 
+
+OG0000097 is annotated as an hypothetical protein and OG0003111 as well.
+
+While the result is cool and promising, I think a pitfall here is that orthofinder defines very wide orthogroups. Therefore I'd like to confirm these results by rerunning the iPython notebook. 
+
+# Roary
+
+# Let's try with the roary output
+
+```{r}
+roary <- read_csv("out_ICE_analysis/Pangenome/_1536417924/gene_presence_absence.csv") %>%
+  select(Gene, starts_with("AMB"), "L-Mudanjiangensis-DSM-28402") %>%
+  gather(key = "genome", value = "geneName", na.rm = T, - Gene) %>%
+  separate_rows(geneName, sep = ", ")
+```
+
+## Make core genes
+
+```{r}
+# Figure out strict core orthogroups
+core_roary <- roary %>% 
+  group_by(Gene, genome) %>%
+  summarise(count = n()) %>%
+  group_by(Gene) %>%
+  summarise(count = n()) %>%
+  filter(count == 4) %>%
+  select(Gene) %>%
+  left_join(roary %>% select(Gene, geneName))
+```
+
+## For every core gene define its previous and next core gene
+
+```{r}
+core_roary <- core_roary %>%
+  arrange(geneName) %>%
+  mutate(prevcoreGene = lag(Gene, n = 1),
+         nextcoreGene = lead(Gene, n = 1))
+```
+
+## For every gene define it's previous and next core orthogroup
+
+The function that does the magict job here, is fill()
+
+```{r}
+roary <- roary %>%
+  left_join(core_roary) %>%
+  arrange(geneName) %>%
+  fill(prevcoreGene, nextcoreGene)
+
+```
+
+## Check with conjugation genes
+
+I'll be writing this to a table so that we can manually check it
+
+```{r}
+CONJScan_genes %>%
+  select(genome, gene, Gene) %>%
+  rename(geneName = gene, 
+         CONJScanGenes = Gene) %>%
+  left_join(roary) %>%
+  write_tsv("out_ICE_results_roary.tsv")
+```
+
+## Conclusion
+
+The result amazed me! AMB-F209_1, AMB-F249_2 and L-Mudanjiangensis-DSM-28402 all have OG0000097 and OG0003111 at their boundaries! The others do not, which perfectly adds up with the fact that they are plasmids. 
+
+OG0000097 is annotated as an hypothetical protein and OG0003111 as well.
+
+While the result is cool and promising, I think a pitfall here is that orthofinder defines very wide orthogroups. Therefore I'd like to confirm these results by rerunning the iPython notebook. 
+

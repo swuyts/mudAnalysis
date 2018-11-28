@@ -1,0 +1,208 @@
+---
+title: "Process Quast Output"
+author: "Sander Wuyts"
+date: "25 July 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(stringr)
+library(tidyverse)
+
+wd = "~/serverUA/sander/mudan/03_quality_control/"
+# Following files are required as input:
+# - transposed_report.tsv 
+# - assembly_summary_plantarumgroup.txt
+
+setwd(wd)
+quastReportFile = "out/transposed_report.tsv" 
+ncbi_summary_file = "../02_download_ncbi_genomes/assembly_summary_plantarumgroup.txt"
+
+# read quast report file
+report = read.table(quastReportFile, header=T, sep="\t", comment.char="", quote="")
+# column names: replace any number of points by one underscore
+names(report) = str_replace_all(names(report), "\\.+", "_")
+# column names: remove trailing underscore
+names(report) = str_replace(names(report), "\\_$", "")
+# column names: replace X by N (number of...)
+names(report) = str_replace(names(report), "X", "N")
+
+# read NCBI data file
+ncbi_data = read_tsv(ncbi_summary_file, col_names = c("assembly_accession", "bioproject", "biosample", "wgs_master", "refseq_category","taxid", "species_taxid",  "organism_name", "infraspecific_name", "isolate", "version_status", "assembly_level", "release_type",  "genome_rep", "seq_rel_date", "asm_name", "submitter", "gbrs_paired_asm", "paired_asm_comp","ftp_path",  "excluded_from_refseq","dunno"))
+# assembly accession numbers: take only part before the dot (to match accession numbers in quast table)
+ncbi_data$assembly_accession = str_match(ncbi_data$assembly_accession, "(.*)( |\\.)")[,2]
+
+# make super table with all info (ncbi and quast)
+genomeTable = merge(report, ncbi_data, by.x="Assembly", by.y="assembly_accession", all.x=T)
+
+# make extra column with species name only (no strain names)
+genomeTable$species = str_match(genomeTable$organism_name, "Lactobacillus ([a-z]*)")[,2]
+# give species name "isolate" to the isolate genomes
+genomeTable$species[is.na(genomeTable$species)] = "isolate"
+
+genomeTable <- genomeTable %>% mutate(species = if_else(str_detect(Assembly,"Mudanjiangensis"), "mudanjiangensis", 
+                                         if_else(str_detect(Assembly, "Herbarum"), "herbarum", species)))
+
+```
+
+# N50 and total genome length
+
+Let's check the distribution of the N50 values:
+
+```{r, echo=FALSE}
+ggplot(data=genomeTable, aes(x=N50)) +
+  geom_density(aes(group=NULL)) +
+  geom_jitter(aes(y=(-0.05 - 0.1*ifelse(species=="isolate", 1, 0)),
+                  col=species, width=0, height=0.01),alpha=0.8) +
+  scale_x_log10() +
+  scale_color_brewer(palette="Paired", name="own isolate") +
+  geom_vline(xintercept=25000)
+```
+
+There's two with a very short N50. Let's put a cutoff of N50  > 25000 bp to exclude this one
+
+Let's plot the quality parameters: N50 values and number of N's per 100.000 bases. 
+
+```{r, echo=FALSE}
+ggplot(data=genomeTable, aes(x=N_N_s_per_100_kbp, y=N50, col=species)) +
+  geom_point() +
+  scale_y_log10() +
+  scale_x_log10() +
+  scale_color_brewer(palette="Paired", name="species") +
+  geom_hline(yintercept=6000) +
+  geom_vline(xintercept=500)
+```
+
+Let's put a cutoff at around 500.
+
+```{r}
+# Make extra variable with selected genomes
+genomeTable$useGenome = genomeTable$N50>25000 & genomeTable$N_N_s_per_100_kbp<500
+
+# Summary
+sprintf("total number of genomes: %i", nrow(report))
+sprintf("number of genomes that pass QC: %i", sum(genomeTable$useGenome))
+```
+
+Now we can plot genome parameters: GC content and genome length: 
+
+```{r, echo=FALSE}
+ggplot(data=genomeTable, aes(x=Total_length, y=GC, col=species)) +
+  geom_point(alpha=0.8) +
+  scale_color_brewer(palette="Paired", name="species") +
+  geom_vline(xintercept=4e6)
+```
+
+There's one with a much bigger genome size than the rest. Looking at other parameters of this genome it seems that it has no contigs higher than 10 000 bp. All the rest of the assemblies do. This is also the one with the very low N50. 
+
+```{r}
+ggplot(data=genomeTable, aes(x=species, y=Total_length, col=species)) +
+  geom_jitter(height=0, width=0.3) +
+  scale_color_brewer(palette="Paired", name="species") + 
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))
+```
+
+In addition, there's one paraplantarum with a very low genome length compared to the rest. Let's also remove that one
+
+```{r}
+# Make extra variable with selected genomes
+genomeTable$useGenome = genomeTable$useGenome & genomeTable$Total_length<4.5e6 & genomeTable$Total_length>2e6
+
+# Summary
+sprintf("total number of genomes: %i", nrow(report))
+sprintf("number of genomes that pass QC: %i", sum(genomeTable$useGenome))
+```
+
+Make the genometable file!
+
+```{r, echo=FALSE}
+# Write file with all information of selected genomes
+write.table(genomeTable[genomeTable$useGenome,], file="genomeTable_full.tsv",
+            quote=F, col.names=T, row.names=F, sep="\t")
+
+# Write table accession numbers and species names of selected genomes
+write.table(genomeTable[genomeTable$useGenome,c("Assembly", "species")], file="genomeTable.tsv",
+            quote=F, col.names=F, row.names=F, sep="\t")
+
+# Write table with selected genomes only
+write.table(genomeTable[genomeTable$useGenome,"Assembly"], file="genomesToUse.txt",
+            quote=F, col.names=F, row.names=F, sep="\t")
+```
+
+# Some other standard plots
+
+```{r}
+ggplot(data=genomeTable[genomeTable$useGenome,], aes(x=species, y=GC, col=species)) +
+  geom_jitter(height=0, width=0.3) +
+  scale_color_brewer(palette="Paired", name="species") + 
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))
+```
+
+```{r}
+ggplot(data=genomeTable[genomeTable$useGenome,], aes(x=species, y=N_contigs, col=species)) +
+  geom_jitter(height=0, width=0.3) +
+  scale_color_brewer(palette="Paired", name="species") + 
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))
+```
+
+```{r}
+ggplot(data=genomeTable[genomeTable$useGenome,], aes(x=species, y=Largest_contig, col=species)) +
+  geom_jitter(height=0, width=0.3) +
+  scale_color_brewer(palette="Paired", name="species") + 
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))
+```
+
+```{r}
+ggplot(data=genomeTable[genomeTable$useGenome,], aes(x=species, y=Total_length, col=species)) +
+  geom_jitter(height=0, width=0.3) +
+  scale_color_brewer(palette="Paired", name="species") + 
+  theme(axis.text.x = element_text(angle=45,hjust=1,vjust=1))
+```
+
+```{r}
+ggplot(data=genomeTable[genomeTable$useGenome,], aes(x=GC, y=Total_length, col=species)) +
+  geom_point() +
+  scale_color_brewer(palette="Paired", name="species") 
+```
+
+
+Some conclusions:
+
+* Plantarum has a wide GC range
+* There's one Plantarum strain which is probably a pentosus strain
+
+
+# Statistics for paper
+
+Amount per species
+
+```{r}
+genomeTable %>%
+  filter(useGenome == T) %>%
+  group_by(species) %>%
+  summarise(count = n())
+```
+
+Amount of lactobacilli
+
+```{bash eval=FALSE}
+grep "Lactobacillus" ../02_download_ncbi_genomes/assembly_summary.txt  > ../02_download_ncbi_genomes/assembly_summary_lactobacillus.txt
+```
+```{r}
+read_tsv("../02_download_ncbi_genomes/assembly_summary_lactobacillus.txt", col_names = c("assembly_accession", "bioproject", "biosample", "wgs_master", "refseq_category","taxid", "species_taxid",  "organism_name", "infraspecific_name", "isolate", "version_status", "assembly_level", "release_type",  "genome_rep", "seq_rel_date", "asm_name", "submitter", "gbrs_paired_asm", "paired_asm_comp","ftp_path",  "excluded_from_refseq","dunno")) %>%
+  mutate(speciesName = str_match(organism_name, "Lactobacillus ([a-z]*)")[,2]) %>%
+  group_by(species_taxid, speciesName) %>%
+  summarise(count = n(), perc = n()/nrow(.)*100) %>%
+  arrange(desc(count)) 
+```
+
+# Mudan characteristics
+
+```{r}
+genomeTable %>%
+  filter(str_detect(Assembly, "AMB") | str_detect(Assembly, "Mudan")) %>%
+  select(Assembly, Total_length, GC)
+```
+
+

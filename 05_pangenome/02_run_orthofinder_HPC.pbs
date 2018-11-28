@@ -1,0 +1,21 @@
+#!/bin/bash
+
+#PBS -l walltime=48:00:00
+#PBS -L tasks=1:lprocs=28
+export LD_BIND_NOW=1
+
+# USES DIAMOND INSTEAD OF BLAST!
+
+porthofinder=/user/antwerpen/202/vsc20280/software/OrthoFinder-2.2.6/
+pin_sequences=/small/antwerpen/202/vsc20280/mudan_data2/
+
+module load leibniz/2018a
+module load parallel
+module load MCL/14.137-intel-2018a
+module load MAFFT/7.402-intel-2018a-with-extensions
+
+export PATH=$PATH:$VSC_HOME/software
+
+parallel --jobs 28 --no-notice --verbose 'bunzip2' ::: ${pin_sequences}*bz2
+${porthofinder}orthofinder -f $pin_sequences -M msa -S diamond -t 28 -oa
+parallel --jobs 28 --no-notice --verbose 'bzip2' ::: ${pin_sequences}*faa

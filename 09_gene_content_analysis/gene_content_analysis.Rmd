@@ -1,0 +1,629 @@
+---
+title: "Gene content analysis L. mudan"
+author: "Sander Wuyts"
+date: "28 September 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(stringr)
+library(vegan)
+library(ggpubr)
+library(UpSetR)
+library(ggplotify)
+library(knitr)
+```
+
+# Initial processing
+
+## Read in all data
+
+```{r}
+# Orthofinder results
+gene_pres_abs <- read_tsv("../05_pangenome/Results_Sep03/Orthogroups.GeneCount.csv") %>%
+  rename(orthogroup = X1)%>%
+  select(-Total) %>%
+  gather(key = genome, value = ngenes, -orthogroup) %>%
+  filter(! is.na(ngenes) )
+
+# ANI results
+genomeTable <- read_tsv("../07_ANI/genomeTableWithClades.tsv") %>%
+    mutate(cladeName = case_when(cladeNumber == "clade1" ~ "L. mudanjiangensis",
+                               cladeNumber == "clade2" ~ "L. fabifermentans",
+                               cladeNumber == "clade3" ~ "L. xiangfangensis",
+                               cladeNumber == "clade4" ~ "L. herbarum",
+                               cladeNumber_split == "clade5b" ~ "L. pentosus",
+                               cladeNumber_split == "clade5a" ~ "clade5a",
+                               cladeNumber == "clade6" ~ "L. paraplantarum",
+                               cladeNumber == "clade7" ~ "L. plantarum")) %>%
+    mutate(cladeName = factor(cladeName, levels = c("L. mudanjiangensis",
+                                                  "L. fabifermentans",
+                                                  "L. xiangfangensis",
+                                                  "L. herbarum",
+                                                  "clade5a",
+                                                  "L. pentosus",
+                                                  "L. paraplantarum",
+                                                  "L. plantarum")))  %>%
+  rename(genome = Assembly)
+
+# Eggnog results
+eggnog <- read_tsv("../08_map_to_eggnog/out/mudan_pan_genome.emapper.annotations", skip = 3) %>%
+  rename(orthogroup = `#query_name`,
+         functCat = `COG cat`) %>%
+  mutate(orthogroup = str_replace(orthogroup, "mudan_", ""))
+
+# functional categories of eggnog
+eggnogFunctCat <- read_tsv("in/functCat_descriptions.tsv")
+
+```
+
+## Merge some tables
+
+```{r}
+gene_pres_abs <- gene_pres_abs %>%
+  left_join(genomeTable)
+```
+
+# Summary statistics of Plantarum group and clades
+
+## Table
+
+```{r}
+# adapted from casei group script
+calculateCladeStatistics = function(gene_pres_abs) {
+  
+  part1 = 
+    gene_pres_abs %>%
+    select(genome)%>%
+    distinct()  %>%
+    summarise(nGenomes = n())
+  nGenomesTot = part1[[1]][1]
+  
+  part2 = gene_pres_abs %>%
+    group_by(orthogroup) %>%
+    summarise(ngenomes = sum(ngenes != 0)) %>%
+    filter(ngenomes != 0) %>%
+    summarise(nCoreOrthogroups = sum(ngenomes >= (0.96 * nGenomesTot)), 
+              nAccOrthogroups = sum(ngenomes < (0.96 * nGenomesTot)))
+  
+  part3 = gene_pres_abs %>%
+    group_by(genome) %>%
+    summarise(nOrthogroups = sum(ngenes != 0), nGenes = sum(ngenes)) %>%
+    summarise(avnOrthogroups = mean(nOrthogroups), avnGenes = mean(nGenes),
+              sdnOrthogroups = sd(nOrthogroups), sdnGenes = sd(nGenes))
+  
+  part4  = gene_pres_abs %>%
+    select(genome,species) %>%
+    distinct() %>%
+    count(species) %>%
+    summarise(mostAbunSpecies = .$species[which.max(n)], Abundance = .$n[(which.max(n))]/sum(n))
+  return(cbind(part1, part2, part3, part4))
+  
+}
+
+clade_stats <- gene_pres_abs %>%
+  list(., 
+       filter(., cladeNumber_split == "clade1"),
+       filter(., cladeNumber_split == "clade2"),
+       filter(., cladeNumber_split == "clade3"),
+       filter(., cladeNumber_split == "clade4"),
+       filter(., cladeNumber_split == "clade5a"),
+       filter(., cladeNumber_split == "clade5b"),
+       filter(., cladeNumber_split == "clade6"),
+       filter(., cladeNumber_split == "clade7")) %>%
+  lapply(FUN = calculateCladeStatistics) %>%
+  bind_rows() %>%
+  mutate(clade = c("Plantarum group", "clade 1", "clade 2", "clade 3", "clade 4", "clade 5a", "clade 5b", "clade 6", "clade 7")) %>%
+  select(clade,everything())
+
+clade_stats
+write_tsv(clade_stats, "clade_stats.tsv")
+```
+
+## Visualisation
+
+
+```{r}
+plotdata <-clade_stats %>%
+  select(clade, nCoreOrthogroups, nAccOrthogroups) %>%
+  gather(key = "type", value = "count", -clade) 
+
+ggplot(plotdata, aes(x = clade, y = count)) +
+  expand_limits(y=0) +
+  geom_col(aes(fill = type)) +
+  geom_text(data = clade_stats, aes(x = clade, y = 9000, label = nGenomes)) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2")  +
+  theme_classic() 
+
+```
+
+```{r, fig.width=12, fig.height=6}
+plotdata <- gene_pres_abs %>%
+  group_by(genome) %>%
+  mutate(nOrthogroups = sum(ngenes != 0), nGenes = sum(ngenes)) %>%
+  select(genome, cladeName, nOrthogroups, nGenes) %>%
+  distinct() %>%
+  gather(key = "type", value = "count", -genome, -cladeName)
+
+nGenes <- plotdata %>%
+  filter(type == "nGenes") %>%
+  ggplot(aes(x = cladeName, y = count, fill = cladeName, group = cladeName)) +
+  geom_boxplot(aes(color = cladeName), alpha = 0.20, outlier.shape =  NA) +
+  geom_point(aes(col = cladeName), position = position_jitterdodge()) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_colour_brewer(palette = "Dark2") +
+  xlab("") +
+  ylab("Number of genes") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1)) 
+nGenes
+```
+
+northogroups
+
+```{r}
+nOrthogroups <- plotdata %>%
+  filter(type == "nOrthogroups") %>%
+  ggplot(aes(x = cladeName, y = count, fill = cladeName, group = cladeName)) +
+  geom_boxplot(aes(color = cladeName), alpha = 0.20, outlier.shape =  NA) +
+  geom_point(aes(col = cladeName), position = position_jitterdodge()) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_colour_brewer(palette = "Dark2") +
+  xlab("") +
+  ylab("Number of orthogroups") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1)) 
+nOrthogroups
+```
+
+
+Genome sizes
+
+```{r}
+# read quast report file
+report = read.table("../03_quality_control/out/transposed_report.tsv" , header=T, sep="\t", comment.char="", quote="") %>%
+  rename(genome = Assembly)
+# column names: replace any number of points by one underscore
+names(report) = str_replace_all(names(report), "\\.+", "_")
+# column names: remove trailing underscore
+names(report) = str_replace(names(report), "\\_$", "")
+# column names: replace X by N (number of...)
+names(report) = str_replace(names(report), "X", "N")
+
+genomesize <- genomeTable %>%
+  left_join(report) %>%
+  mutate(genomesize = Total_length/1000000) %>%
+  select(genome, cladeName, genomesize) %>%
+  gather(key = "type", value = "count", -genome, -cladeName)
+
+genomesize_plot <- genomesize %>%
+  ggplot(aes(x = cladeName, y = count, fill = cladeName)) +
+  geom_boxplot(aes(color = cladeName), alpha = 0.20, outlier.shape =  NA) +
+  geom_point(aes(col = cladeName), position = position_jitterdodge()) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_colour_brewer(palette = "Dark2") +
+  xlab("") +
+  ylab("Genome size (Mb)") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1)) 
+genomesize_plot
+```
+
+GC
+
+```{r}
+GC <- genomeTable %>%
+  left_join(report) %>%
+  select(genome, cladeName, GC) %>%
+  gather(key = "type", value = "count", -genome, -cladeName)
+
+gc_plot <- GC %>%
+  ggplot(aes(x = cladeName, y = count, fill = cladeName)) +
+  geom_boxplot(aes(color = cladeName), alpha = 0.20, outlier.shape =  NA) +
+  geom_point(aes(col = cladeName), position = position_jitterdodge()) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_colour_brewer(palette = "Dark2") +
+  xlab("") +
+  ylab("GC-content (%)") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1)) 
+gc_plot
+```
+
+```{r, fig.width=8, fig.height=6}
+ggarrange(genomesize_plot,
+          gc_plot,
+          nGenes,
+          ncol = 3,
+          legend = 'none',
+          labels = "AUTO")
+```
+
+```{r, fig.width=8, fig.height=6}
+plotdata %>%
+  bind_rows(genomesize) %>%
+  bind_rows(GC) %>%
+  ggplot(aes(x = cladeName, y = count, fill = cladeName, group = cladeName)) +
+  geom_boxplot(aes(color = cladeName), alpha = 0.20, outlier.shape =  NA) +
+  geom_point(aes(col = cladeName), position = position_jitterdodge()) +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_colour_brewer(palette = "Dark2") +
+  xlab("") +
+  ylab("") +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_wrap(~type, scales = "free_y")
+
+
+```
+
+
+# Functional analysis à la casei group paper
+
+```{r}
+make_pcoaTable = function(gene_pres_abs) {
+  
+  gene_pres_abs %>%
+    select(orthogroup, genome, ngenes) %>%
+    spread(key = orthogroup, value = ngenes, fill = 0) %>%
+    remove_rownames() %>%
+    column_to_rownames(var = "genome") %>%
+    as.matrix() %>%
+    vegdist(method = "bray") %>%
+    cmdscale(k = 2) %>%
+    as.data.frame() %>%
+    rownames_to_column(var = "genome") %>%
+    return()
+  
+}
+```
+
+## PCoA for all orthogroups
+
+
+```{r}
+# make table with pcoa coordinates for all genomes 
+T_pcoa1 <- make_pcoaTable(gene_pres_abs) %>%
+  left_join(genomeTable)
+
+
+# plot and save
+ggplot(T_pcoa1, aes(x = V1, y = V2, col = cladeNumber_split)) +
+  geom_point(size= 3 , alpha= 0.8) +
+  scale_colour_brewer(palette = "Dark2") +
+  theme(panel.background = element_rect(fill = 'white', colour = 'black'))
+ggsave(filename = "pcoa_overall.png", height = 20, width = 30, units = "cm")
+```
+
+## PCoA per functional category
+Next, we can do the same, but per functional category. Some important things to keep in mind:
+
+* It is important to realize that several orthogroups are present in multiple functional categories!! So these are represented in multiple sub-plots. 
+* We will remove functional categories with less than 20 orthogroups from the figure because there is too little information to "resolve" all points (genomes) in the pcoa plot. 
+* The distances between genomes are percentages, not of a number of orthogroups but of a number of genes!! It would of course be possible to change this to orthogroup presence/absence instead of considering the numbers of genes. This would yield a slightly different graph. 
+* The large majority of the orthogroups has no known function! 
+
+```{r fig.width=10, fig.height=5}
+gene_pres_abs_eggnog <- gene_pres_abs %>%
+  left_join(eggnog) %>%
+  select(genome, orthogroup, ngenes, functCat, `eggNOG annot`) %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat)
+
+# make table with number of orthogroups per functional category
+T_nOrthogroupsPerFunctCat <- gene_pres_abs_eggnog %>%
+  select(orthogroup, functCat) %>%
+  distinct() %>%
+  group_by(functCat) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, " (n = ", n, ")", "\n", str_wrap(description, width= 55)))
+
+# do pcoa per functional category and add genome info
+T_pcoa2 = gene_pres_abs_eggnog %>%
+  split(f = .$functCat) %>%
+  lapply(FUN = function(table) {
+    if (nrow(table) <= 5) return(NULL)
+    functionalCategory = table$functCat[1]
+    make_pcoaTable(table) %>%
+      mutate(functCat = functionalCategory) %>%
+      mutate(V1 = V1 - (min(V1) + max(V1)) / 2,
+             V2 = V2 - (min(V2) + max(V2)) / 2) %>%     
+      return()
+  }) %>% bind_rows() %>%
+  left_join(genomeTable) %>%
+  left_join(T_nOrthogroupsPerFunctCat)
+
+# make and save plot! 
+ggplot(T_pcoa2, aes(x = V1, y = V2, col = cladeNumber_split)) +
+  geom_point(alpha=0.5, size = 2) +
+  scale_colour_brewer(palette = "Dark2") +
+  facet_wrap(~ functCatDescription, ncol = 5) +
+  theme(panel.background = element_rect(fill = 'white', colour = 'black'))
+ggsave(filename = "pcoa_perFunctCat.png", height = 25, width = 40, units = "cm")
+```
+
+Highlights:
+
+- Clear difference in Energy production in clades 1-4 vs clades 5-7 -> Need to look into this!!!!!
+- Similar for category E
+- Clade 1 does something different for Transcirption 
+- Clade 1 is different in cell wall biogenesis!!!!!!
+- Clade 1 is very different regarding cell motility!!!!!!!
+- Clade 1 is different in Posttranslational modification
+- Clade 1 is different in inorganic transport
+- There's one outlier in Q regarding clade2. need to look into this!!!! -> Does this fabifermentans do something different???
+
+## Digging deeper in functional stuff
+
+### Case study: Category N
+
+There's a difference between OGs presence abscence for category N and clade 1. Can we figure out which OGs?
+
+```{r}
+cat_N <- gene_pres_abs_eggnog %>%
+  filter(functCat == "N") %>%
+  filter(ngenes >0)
+
+cat_N %>%
+  group_by(genome) %>% 
+  summarise(count = sum(ngenes > 0)) %>%
+    left_join(genomeTable) %>%
+  ggplot(aes(x= cladeNumber_split, y = count, col = cladeNumber_split)) +
+  scale_color_brewer(palette = "Dark2") +
+  geom_jitter(height = 0) +
+  coord_flip()
+```
+
+```{r, fig.height= 10}
+cat_N %>% 
+  left_join(genomeTable) %>%
+  ggplot(aes(x=genome, y= ngenes, fill=orthogroup)) + 
+  geom_bar(stat = "identity", color = "black") +
+  facet_wrap(~cladeNumber_split, scales = "free_x", nrow = 8)
+
+```
+
+
+# Which are unique orthogroups?
+
+```{r}
+clade_unique <- gene_pres_abs %>%
+  filter(ngenes > 0) %>%
+  select(orthogroup, cladeNumber_split) %>%
+  distinct() %>%
+  add_count(orthogroup) %>%
+  filter(n == 1) %>%
+  select(-n) %>%
+  left_join(eggnog %>% select(orthogroup, functCat, `eggNOG annot`))
+
+clade_unique %>%
+  group_by(cladeNumber_split) %>%
+  summarise(count = n())
+```
+
+
+
+```{r, fig.height= 10, fig.width = 8}
+clade_unique %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat) %>%
+  select(orthogroup, functCat, cladeNumber_split) %>%
+  distinct() %>%
+  group_by(functCat, cladeNumber_split) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, ": ", description)) %>%
+  ggplot(aes(x = reorder(functCatDescription, -n), y = n)) +
+  geom_col() +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  ylab("Orthogroup count") +
+  xlab("") +
+  facet_wrap(~cladeNumber_split, scales = "free_x")
+```
+
+# For clade1 only
+
+```{r}
+clade1_unique <- gene_pres_abs %>%
+  filter(ngenes > 0) %>%
+  select(orthogroup, cladeNumber_split) %>%
+  distinct() %>%
+  add_count(orthogroup) %>%
+  filter(n == 1,
+         cladeNumber_split == "clade1") %>%
+  select(-n) %>%
+  left_join(eggnog %>% select(orthogroup, functCat, `eggNOG annot`))
+```
+
+349 unique orthogroups for clade 1
+
+```{r, fig.width=8}
+clade1_unique %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat) %>%
+  select(orthogroup, functCat)%>%
+  distinct() %>%
+  group_by(functCat) %>%
+  summarise(n = n()) %>%
+  left_join(eggnogFunctCat) %>%
+  mutate(functCatDescription = str_c(functCat, ": ", description)) %>%
+  ggplot(aes(x = reorder(functCatDescription, -n), y = n)) +
+  geom_col(fill = "#1f77b4") +
+  geom_text(aes(y = -20, label = n)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_text(face = "bold", size = 10.2)) +
+  ylab("Orthogroup count") +
+  xlab("")
+```
+
+Let's dig a little bit further into these uniques
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# By S. Wittouck
+tidy_orthofinder <- function(orthofinder_dir) {
+  
+  genes_assigned <- orthofinder_dir %>%
+    paste0("/Orthogroups.csv") %>%
+    readr::read_tsv(col_names = T) %>%
+    rename(orthogroup = X1) %>%
+    gather(key = "genome", value = "gene", na.rm = T, - orthogroup) %>%
+    separate_rows(gene, sep = ", ")
+  
+}
+
+# Read in gene info
+files <- str_c("../11_gene_info/out/", list.files("../11_gene_info/out/",  pattern = "infoseq")) 
+names(files) <- files
+
+genes <- map_df(files, read_tsv, skip = 1, col_names = c("gene", "Length", "%GC", "Description"), .id = "filename")  %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "deleteme3","file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme4"), fill = "right") %>%
+  select(-(starts_with("deleteme")))
+
+# Read in orthogroup info
+orthogroups <- tidy_orthofinder("~/serverUA/sander/mudan/05_pangenome/Results_Sep03/")
+
+# Merge with uniques
+
+clade1_unique_annot <- clade1_unique %>%
+  mutate(functCat = ifelse(is.na(functCat), "S", functCat)) %>% # if function is unkown add to category S
+  separate(functCat, into = c("temp1","temp2"), sep=", ", fill = "right") %>% # split rows with multiple functCats
+  gather(key = "temp", value = "functCat", temp1, temp2) %>%
+  select(-temp) %>%
+  drop_na(functCat) %>%
+  select(orthogroup, functCat)%>%
+  distinct() %>%
+  left_join(eggnogFunctCat) %>%
+  left_join(orthogroups) %>%
+  left_join(genes)
+```
+
+Unique annotations for category G
+
+```{r}
+clade1_unique_annot %>%
+  filter(functCat == "G") %>%
+  pull(Description) %>%
+  unique() %>%
+  kable()
+```
+
+Endoglucanase E1
+
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3856469/:
+Conversion of cellulose polymers to simple sugars requires the use of cellulases. Endoglucanases act by cleaving internal β-glycosidic bonds in the cellulose chain, thereby making chain ends accessible to cellobiohydrolase. Endoglucanases have an enzyme classification number 3.2.1.4 and belong to the broader enzyme group called glycosyl hydrolases, which also includes other cellulases such as exoglucanase and β-glucosidase. According to the CAZy database (http://www.cazy.org), endoglucanases are part of 13 distinct glycosyl hydrolase families, distributed in several archeal, bacterial, fungal, and eukaryotic organisms.
+
+Vergelijken met onze eigen CAZYME classificatie! In AMB-F197 werd dit gen inderdaad al aangeduid als een GH5!
+
+In discussie dieper ingaan op dit cellulose content (zie slack sarah)
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3550877/
+
+Van de rest valt weinig te zeggen
+
+```{r}
+clade1_unique_annot %>%
+  filter(functCat == "M") %>%
+  pull(Description) %>%
+  unique() %>%
+  kable()
+```
+
+
+# UpsetR
+
+Create an upset plot comparing the number of shared orthogroups per species
+
+
+```{r, fig.height=8, fig.width = 12}
+upsetdf <- gene_pres_abs %>%
+  select(orthogroup, cladeNumber_split, ngenes) %>% 
+  group_by(orthogroup, cladeNumber_split) %>%
+  summarise(ngenes = sum(ngenes)) %>% # Sum the number of orthogroups per clade
+  mutate(ngenes = if_else(ngenes > 0, 1, 0)) %>% # Convert to presence absence instead of gene count
+  mutate(cladeNumber_split = case_when(cladeNumber_split == "clade1" ~ "L.mudanjiangensis",
+                               cladeNumber_split == "clade2" ~ "L.fabifermentans",
+                               cladeNumber_split == "clade3" ~ "L.xiangfangensis",
+                               cladeNumber_split == "clade4" ~ "L.herbarum",
+                               cladeNumber_split == "clade5a" ~ "clade5a",
+                               cladeNumber_split == "clade5b" ~ "L.pentosus",
+                               cladeNumber_split == "clade6" ~ "L.paraplantarum",
+                               cladeNumber_split == "clade7" ~ "L.plantarum")) %>%
+  spread(cladeNumber_split, ngenes) # Make it untidy again. What a pitty
+  
+pdf("upset.pdf", width = 12, height = 8)
+
+upsetdf <- as.data.frame(upsetdf)
+upset(upsetdf,
+      sets = c("L.mudanjiangensis",
+               "L.fabifermentans",
+               "L.xiangfangensis",
+               "L.herbarum",
+               "clade5a",
+               "L.pentosus",
+               "L.paraplantarum",
+               "L.plantarum"),
+      empty.intersections = "on",
+      keep.order = T,
+       queries = list(
+         list(query = intersects, params = list("L.mudanjiangensis"), active = T),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.fabifermentans"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.xiangfangensis"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.herbarum"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "clade5a"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.pentosus"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.paraplantarum"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.plantarum"), active = T, color = "orange"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.pentosus","L.plantarum"), active = T, color = "red"),
+         list(query = intersects, params = list("L.mudanjiangensis", "L.paraplantarum","L.plantarum"), active = T, color = "red")
+         ),
+      mainbar.y.label = "Number of orthogroups",
+      sets.x.label = "Total number of orthogroups",
+      point.size = 3.5,
+      line.size = 2,
+      text.scale = c(2, 1.5, 1.5, 1.5, 2, 1)
+      )
+
+dev.off()
+
+```
+
+
+
+# Mudan only
+
+```{r, fig.height=8, fig.width = 12}
+upsetdf <- gene_pres_abs %>%
+  filter(cladeNumber == "clade1") %>%
+  select(orthogroup, genome, ngenes) %>% 
+  mutate(ngenes = if_else(ngenes > 0, 1, 0)) %>% # Convert to presence absence instead of gene count
+  spread(genome, ngenes) # Make it untidy again. What a pitty
+  
+upsetdf <- as.data.frame(upsetdf)
+upset(upsetdf,
+      empty.intersections = "on",
+      mainbar.y.label = "Number of unique orthogroups",
+      sets.x.label = "Total number of orthogroups",
+      point.size = 3.5,
+      line.size = 2,
+      text.scale = c(2, 1.5, 1.5, 1.5, 2, 1),
+      order.by = "freq"
+      )
+```
+
+

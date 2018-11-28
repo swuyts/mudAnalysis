@@ -1,0 +1,59 @@
+---
+title: "spaCBA"
+author: "Sander Wuyts"
+date: "31 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+files <- str_c("out/spaCBA/", list.files("out/spaCBA/",  pattern = ".tsv")) 
+names(files) <- files
+
+spaCBA <- map_df(files, read_tsv,
+                col_names = c("target_name","gene","percentage_identity","length","query_coverage"),
+                .id = "filename") %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "file"), fill = "right") %>%
+  separate(file, "\\.", into = c("Assembly", "deleteme3"), fill = "right") %>%
+  select(-deleteme, -deleteme2, -deleteme3)
+
+# Read in clade info
+clades <- read_tsv("~/serverUA/sander/mudan/07_ANI/genomeTableWithClades.tsv")%>%
+  select(Assembly, species, cladeNumber_split)
+
+
+# Add clade number
+spaCBA <- spaCBA %>%
+  left_join(clades) 
+```
+
+General hits
+
+```{r}
+ggplot(spaCBA, aes(x = query_coverage, y = percentage_identity)) +
+  geom_point() +
+  facet_wrap(~target_name)
+```
+
+There does not seem to be a decent hit. However, there's one with high query coverage of spaC; which one is that?
+
+```{r}
+spaCBA %>% 
+  filter(query_coverage > 80,
+         percentage_identity > 50)
+
+
+```
+
+The strain is called Lactobacillus plantarum LZ227, which has been sequenced with PacBio. It seems that this spaC and the srtC gene are laying on a plasmid. 
+More about the strain here:
+https://www.sciencedirect.com/science/article/pii/S0168165616314304?via%3Dihub#fig0015
+
+It seems that it's also able to produce vitamins
+
+
+Nothing more interesting to report.
+
+
+

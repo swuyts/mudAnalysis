@@ -1,0 +1,297 @@
+---
+title: "TXSScan"
+author: "Sander Wuyts"
+date: "31 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Load all necessary packages, functions and tables
+
+# Packages
+library(tidyverse)
+
+# Functions
+## By S. Wittouck
+tidy_orthofinder <- function(orthofinder_dir) {
+  
+  genes_assigned <- orthofinder_dir %>%
+    paste0("/Orthogroups.csv") %>%
+    readr::read_tsv(col_names = T) %>%
+    rename(orthogroup = X1) %>%
+    gather(key = "genome", value = "gene", na.rm = T, - orthogroup) %>%
+    separate_rows(gene, sep = ", ")
+  
+}
+
+# Load TXSScan output
+dirs <- list.dirs("out/TXSScan", recursive = F)
+files <- str_c(dirs, "/macsyfinder.tab") 
+names(files) <- files
+
+## First load the count files
+TXSScan_count <- map_df(files, read_tsv,
+                .id = "filename") %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme3"), fill = "right") %>%
+  select(-deleteme, -deleteme2, -deleteme3,  -`#Replicon`) %>%
+  gather(key = 'system', value = 'count', -genome)
+
+## Now also load the report files
+dirs <- list.dirs("out/TXSScan", recursive = F)
+files <- str_c(dirs, "/macsyfinder.report") 
+names(files) <- files
+
+TXSScan_genes <- map_df(files, read_tsv,
+                .id = "filename") %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme3"), fill = "right") %>%
+  select(-deleteme, -deleteme2, -deleteme3)
+
+# Read in clade info
+clades <- read_tsv("~/serverUA/sander/mudan/07_ANI/genomeTableWithClades.tsv") %>%
+  select(Assembly, species, cladeNumber_split, cladeName) %>%
+  rename(genome = Assembly)
+
+# Read in gene info
+files <- str_c("../11_gene_info/out/", list.files("../11_gene_info/out/",  pattern = "infoseq")) 
+names(files) <- files
+
+genes <- map_df(files, read_tsv, skip = 1, col_names = c("gene", "Length", "%GC", "Description"), .id = "filename")  %>%
+  separate(filename, "/", into = c("deleteme", "deleteme2", "deleteme3","file"), fill = "right") %>%
+  separate(file, "\\.", into = c("genome", "deleteme4"), fill = "right") %>%
+  select(-(starts_with("deleteme")))
+
+# Read in orthogroup info
+orthogroups <- tidy_orthofinder("~/serverUA/sander/mudan/05_pangenome/Results_Sep03/")
+
+# Add clade number and gene info to TXSScan output
+TXSScan_count <- TXSScan_count %>%
+  left_join(clades)
+
+TXSScan_genes <- TXSScan_genes %>%
+  left_join(clades) %>%
+  rename(gene = `#Hit_Id`) %>%
+  left_join(genes) %>%
+  left_join(orthogroups)
+
+
+```
+
+# First glimpse
+
+How many hits per genome?
+
+
+```{r, fig.height=15, fig.width = 5}
+TXSScan_count %>%
+  ggplot(aes(x = genome, y = count)) +
+  geom_col() +
+  facet_grid(cladeNumber_split~., scales = "free_y", space = "free_y") +
+  coord_flip() +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+Hits can only be found in clade 1, 5b, 6 and clade 7. In 6 genomes in total, 2 copies are found. This is a small difference compared with our previous analysis. Maybe due to better assembly?
+
+```{r}
+TXSScan_count %>%
+  group_by(cladeName) %>%
+  mutate(genomesPerClade = genome %>% unique() %>% length()) %>%
+  ungroup() %>%
+  mutate(presence = if_else(count > 0, 1, 0)) %>%
+  select(-count) %>%
+  distinct() %>%
+  group_by(cladeName) %>%
+  summarise(count = sum(presence), numberOfGenomes = unique(genomesPerClade), YES = sum(presence/genomesPerClade), NO = 1-sum(presence/genomesPerClade)) %>%
+  ungroup() %>%
+  mutate(number_label = str_c(count, "/", numberOfGenomes)) %>%
+  select(-count, -numberOfGenomes) %>%
+  gather(key = "Presence", value = "relabun", - cladeName, -number_label) %>%
+  mutate(cladeName = factor(cladeName, levels = c("L. mudanjiangensis",
+                                                  "L. fabifermentans",
+                                                  "L. xiangfangensis",
+                                                  "L. herbarum",
+                                                  "clade5a",
+                                                  "L. pentosus",
+                                                  "L. paraplantarum",
+                                                  "L. plantarum"))) %>%
+  ggplot(aes(x = cladeName, y = relabun, fill = Presence)) +
+  geom_col() +
+  geom_text(aes(y = 1.1, label = number_label)) + 
+  expand_limits(y = 1.2) +
+  scale_y_continuous(breaks = c(0, 0.5, 1)) +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  theme_minimal() +
+  theme(panel.grid = element_blank()) +
+  xlab("") +
+  ylab("Amount of genomes with conjugation system (%)")
+  
+```
+
+
+Some summarised info
+
+```{r}
+TXSScan_count %>%
+  group_by(cladeNumber_split) %>%
+  mutate(genomesPerClade = genome %>% unique() %>% length()) %>%
+  ungroup() %>%
+  mutate(presence = if_else(count > 0, 1, 0)) %>%
+  filter(presence > 0) %>%
+  select(-count) %>%
+  distinct() %>%
+  group_by(cladeNumber_split) %>%
+  summarise(count = sum(presence), numberOfGenomes = unique(genomesPerClade), rel_abundance = sum(presence/genomesPerClade))
+```
+
+What systems are found?
+
+```{r}
+TXSScan_count %>%
+  group_by(system) %>%
+  summarise(count = sum(count)) %>%
+  ggplot(aes(x = system, y = count)) +
+  geom_col() +
+  coord_flip()
+```
+
+All of them are found in the same category. I wonder whether this is also true for rest of Lactobacilli.
+
+# More in depth
+
+```{r}
+TXSScan_genes %>%
+  ggplot(aes(x = `i-evalue`, y = Sequence_coverage, colour = orthogroup)) +
+  geom_point() + 
+  facet_grid(~Gene) +
+  scale_x_log10() +
+  scale_colour_brewer(palette = "Paired")
+```
+
+```{r}
+TXSScan_genes %>%
+  ggplot(aes(x = `i-evalue`, y = Score, colour = orthogroup)) +
+  geom_point() + 
+  facet_grid(~Gene) +
+  scale_x_log10() +
+  scale_colour_brewer(palette = "Paired")
+```
+
+
+General hits
+
+```{r, fig.height = 10}
+TXSScan_genes %>%
+  group_by(genome, cladeNumber_split) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(x = genome, y = count)) +
+  geom_col() +
+  facet_grid(cladeNumber_split~., scales = "free_y", space = "free_y") +
+  coord_flip() +
+  theme(strip.text.y =  element_text(angle = 0))
+```
+
+
+Cool, not every genome seems to be having hits, and definitely not the same amount of hits. Let’s colour this graph based on the database hits
+
+```{r, fig.height = 10}
+TXSScan_genes %>%
+  ggplot(aes(x = genome, fill = Gene)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Dark2") +
+  facet_grid(cladeNumber_split~., scales = "free_y", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+They all seem to be part of the T4SS system; they secrete proteins directly into other cells. T4SS are involved in protein secretion, in conjugation and in some cases in DNA release to, or uptake from, the environment.
+
+- T4CP2: takes care of transporting dna to the mebrane channel.
+- VirB4 is the ATP motor of the conjugation system.
+
+The other are accesory genes to the conjguation system.
+
+```{r, fig.height = 10}
+TXSScan_genes %>%
+  ggplot(aes(x = genome, fill = orthogroup)) +
+  geom_bar() +
+  coord_flip() +
+  scale_fill_brewer(palette = "Paired") +
+  facet_grid(cladeName~., scales = "free_y", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0),
+        axis.text.y = element_text(size = 5))
+```
+
+How many times is each Gene detected?
+
+```{r}
+TXSScan_genes %>%
+  group_by(Gene) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(x = Gene, y = count, fill = Gene)) +
+  geom_col() +
+  geom_text(aes(x = Gene, y = 100, label = count)) + 
+  scale_fill_brewer(palette = "Dark2") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+How many times is each orthogroup detected?
+
+```{r}
+TXSScan_genes %>%
+  group_by(orthogroup) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(x = orthogroup, y = count, fill = orthogroup)) +
+  geom_col() +
+  geom_text(aes(x = orthogroup, y = 95, label = count)) + 
+  scale_fill_brewer(palette = "Paired") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+TXSScan_genes %>%
+  ggplot(aes(x = Gene, fill = orthogroup)) +
+  geom_bar() +
+  scale_fill_brewer(palette = "Paired") +
+  theme(axis.text.x = element_text(angle = 90)) +
+  coord_flip()
+```
+
+Okay, this is interesting!!! Apparantly the virb4 system  is divided over 2 orthogroups. These are probably the genomes that have multiple hits in one genome. The same goes for T4cp2 and MOBQ(relaxases)!  
+
+In addition, OG0000065 seems like a a core orthogroup as it has a low number. Most genomes seem to have multiple copies in that orthogroup. That's because most of them are annotated as nickase, so it could just capture all of them, but only these reported here are seen as real hits.
+
+```{r, fig.height = 10}
+TXSScan_genes %>%
+  ggplot() +
+  geom_bar(aes(x = genome, fill = orthogroup)) +
+  facet_grid(cladeName~ Gene, scales = "free", space = "free_y") +
+  coord_flip() +
+  theme(strip.text.y =  element_text(angle = 0, size = 8)) +
+  scale_fill_brewer(palette = "Paired")
+```
+
+
+```{r, fig.height = 10}
+TXSScan_genes %>%
+  separate(gene, into = c("genome_id", "geneNumber")) %>%
+  mutate(geneNumber = as.numeric(geneNumber)) %>%
+  group_by(genome) %>%
+  mutate(geneNumber = geneNumber - min(geneNumber)) %>%
+  ggplot(aes(x = geneNumber, y = genome, color = Gene)) +
+  geom_point(size = 3, alpha = 0.7) +
+  facet_grid(cladeName~., scales = "free", space = "free_y") +
+  theme(strip.text.y =  element_text(angle = 0, size = 8)) +
+  scale_color_brewer(palette = "Dark2")
+```
+
+
+# Conclusion
+
+The found hits are clearly connected with the conjugation system. Let's run CONJScan!
+
